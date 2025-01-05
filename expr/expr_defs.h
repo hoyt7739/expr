@@ -34,7 +34,10 @@ struct operater {
         ABS,                // 1 // 1  // abs
         CEIL,               // 1 // 1  // ceil
         FLOOR,              // 1 // 1  // floor
+        TRUNC,              // 1 // 1  // trunc
         ROUND,              // 1 // 1  // round
+        RINT,               // 1 // 1  // rint
+        FACTORIAL,          // 1 // 1  // fact
         POW,                // 2 // 2  // ^
         EXP,                // 1 // 1  // exp
         LOG,                // 2 // 2  // log
@@ -42,15 +45,24 @@ struct operater {
         LN,                 // 1 // 1  // ln
         SQRT,               // 1 // 1  // √
         ROOT,               // 2 // 2  // √
+        HYPOT,              // 2 // 2  // ⊿
         DEG,                // 1 // 1  // deg
         RAD,                // 1 // 1  // rad
         SIN,                // 1 // 1  // sin
+        ARCSIN,             // 1 // 1  // asin
         COS,                // 1 // 1  // cos
+        ARCCOS,             // 1 // 1  // acos
         TAN,                // 1 // 1  // tan
+        ARCTAN,             // 1 // 1  // atan
         COT,                // 1 // 1  // cot
+        ARCCOT,             // 1 // 1  // acot
+        SEC,                // 1 // 1  // sec
+        ARCSEC,             // 1 // 1  // asec
+        CSC,                // 1 // 1  // csc
+        ARCCSC,             // 1 // 1  // acsc
         VECTOR,             // 2 // 6  // ∠
-        AMP,                // 1 // 1  // amp
-        ARG,                // 1 // 1  // arg
+        AMPLITUDE,          // 1 // 1  // amp
+        ANGLE,              // 1 // 1  // ang
         EXPAND,             // 2 // 7  // ±
         EXPAND_PERCENT      // 2 // 7  // ±%
     };
@@ -84,7 +96,10 @@ struct operater {
         MODE,               // 1 // 1  // mode
         MAX,                // 1 // 1  // max
         MIN,                // 1 // 1  // min
-        RANGE               // 1 // 1  // range
+        RANGE,              // 1 // 1  // range
+        ARRANGEMENT,        // 1 // 1  // arra
+        COMBINATION,        // 1 // 1  // comb
+        LERP                // 1 // 1  // lerp
     };
 
     operater_type           type;

@@ -497,6 +497,7 @@ node* handler::parse_atom() {
                     CHECK_VALID(insert_node(root, semi, pending, current = nullptr));
                     return root;
                 }
+
                 CHECK_VALID(current = parse_operater(operater::BINARY));
                 CHECK_VALID(insert_node(root, semi, pending, current));
                 state = parse_state::SEGMENT_OPENING;
@@ -530,10 +531,24 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 case STR('a'): {
                     if (try_match(STR("bs"))) {
                         oper = make_arithmetic(operater::ABS);
+                    } else if (try_match(STR("cos"))) {
+                        oper = make_arithmetic(operater::ARCCOS);
+                    } else if (try_match(STR("cot"))) {
+                        oper = make_arithmetic(operater::ARCCOT);
+                    } else if (try_match(STR("csc"))) {
+                        oper = make_arithmetic(operater::ARCCSC);
                     } else if (try_match(STR("mp"))) {
-                        oper = make_arithmetic(operater::AMP);
-                    } else if (try_match(STR("rg"))) {
-                        oper = make_arithmetic(operater::ARG);
+                        oper = make_arithmetic(operater::AMPLITUDE);
+                    } else if (try_match(STR("ng"))) {
+                        oper = make_arithmetic(operater::ANGLE);
+                    } else if (try_match(STR("rra"))) {
+                        oper = make_evaluation(operater::ARRANGEMENT);
+                    } else if (try_match(STR("sec"))) {
+                        oper = make_arithmetic(operater::ARCSEC);
+                    } else if (try_match(STR("sin"))) {
+                        oper = make_arithmetic(operater::ARCSIN);
+                    } else if (try_match(STR("tan"))) {
+                        oper = make_arithmetic(operater::ARCTAN);
                     } else if (try_match(STR("vg"))) {
                         oper = make_evaluation(operater::AVERAGE);
                     }
@@ -542,10 +557,14 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 case STR('c'): {
                     if (try_match(STR("eil"))) {
                         oper = make_arithmetic(operater::CEIL);
+                    } else if (try_match(STR("omb"))) {
+                        oper = make_evaluation(operater::COMBINATION);
                     } else if (try_match(STR("os"))) {
                         oper = make_arithmetic(operater::COS);
                     } else if (try_match(STR("ot"))) {
                         oper = make_arithmetic(operater::COT);
+                    } else if (try_match(STR("sc"))) {
+                        oper = make_arithmetic(operater::CSC);
                     }
                     break;
                 }
@@ -564,13 +583,17 @@ node* handler::parse_operater(operater::operater_mode mode) {
                     break;
                 }
                 case STR('f'): {
-                    if (try_match(STR("loor"))) {
+                    if (try_match(STR("act"))) {
+                        oper = make_arithmetic(operater::FACTORIAL);
+                    } else if (try_match(STR("loor"))) {
                         oper = make_arithmetic(operater::FLOOR);
                     }
                     break;
                 }
                 case STR('l'): {
-                    if (try_match(STR("g"))) {
+                    if (try_match(STR("erp"))) {
+                        oper = make_evaluation(operater::LERP);
+                    } else if (try_match(STR("g"))) {
                         oper = make_arithmetic(operater::LG);
                     } else if (try_match(STR("n"))) {
                         oper = make_arithmetic(operater::LN);
@@ -594,6 +617,8 @@ node* handler::parse_operater(operater::operater_mode mode) {
                         oper = make_arithmetic(operater::RAD);
                     } else if (try_match(STR("ange"))) {
                         oper = make_evaluation(operater::RANGE);
+                    } else if (try_match(STR("int"))) {
+                        oper = make_arithmetic(operater::RINT);
                     } else if (try_match(STR("ound"))) {
                         oper = make_arithmetic(operater::ROUND);
                     } else if (try_match(STR("t"))) {
@@ -602,7 +627,9 @@ node* handler::parse_operater(operater::operater_mode mode) {
                     break;
                 }
                 case STR('s'): {
-                    if (try_match(STR("in"))) {
+                    if (try_match(STR("ec"))) {
+                        oper = make_arithmetic(operater::SEC);
+                    } else if (try_match(STR("in"))) {
                         oper = make_arithmetic(operater::SIN);
                     } else if (try_match(STR("um"))) {
                         oper = make_evaluation(operater::SUM);
@@ -612,6 +639,8 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 case STR('t'): {
                     if (try_match(STR("an"))) {
                         oper = make_arithmetic(operater::TAN);
+                    } else if (try_match(STR("runc"))) {
+                        oper = make_arithmetic(operater::TRUNC);
                     }
                     break;
                 }
@@ -724,6 +753,10 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 }
                 case STR('∠'): {
                     oper = make_arithmetic(operater::VECTOR);
+                    break;
+                }
+                case STR('⊿'): {
+                    oper = make_arithmetic(operater::HYPOT);
                     break;
                 }
             }

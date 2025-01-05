@@ -6,6 +6,20 @@
 
 namespace expr {
 
+inline bool is_zahlen(real_t value) {
+    const real_t epsilon = 1e-10;
+    return abs(value - round(value)) < epsilon;
+}
+
+inline integer_t factorial(integer_t value) {
+    integer_t res = 1;
+    for (integer_t i = 1; i <= value; ++i) {
+        res *= i;
+    }
+
+    return res;
+}
+
 template<class left_t, class right_t>
 inline variant operate(const left_t& left, const operater& oper, const right_t& right) {
     switch (oper.type) {
@@ -21,10 +35,10 @@ inline variant operate(const left_t& left, const operater& oper, const right_t& 
                     return left * right;
                 }
                 case operater::DIVIDE: {
-                    return right ? left / right : variant();
+                    return 0 == right ? variant() : left / right;
                 }
                 case operater::MOD: {
-                    return right ? static_cast<integer_t>(left) % static_cast<integer_t>(right) : variant();
+                    return 0 == right ? variant() : static_cast<integer_t>(left) % static_cast<integer_t>(right);
                 }
                 case operater::NEGATIVE: {
                     return 0 - right;
@@ -38,8 +52,17 @@ inline variant operate(const left_t& left, const operater& oper, const right_t& 
                 case operater::FLOOR: {
                     return floor(right);
                 }
+                case operater::TRUNC: {
+                    return trunc(right);
+                }
                 case operater::ROUND: {
                     return round(right);
+                }
+                case operater::RINT: {
+                    return rint(right);
+                }
+                case operater::FACTORIAL: {
+                    return right < 0 ? variant() : factorial(static_cast<integer_t>(right));
                 }
                 case operater::POW: {
                     return pow(left, right);
@@ -74,23 +97,50 @@ inline variant operate(const left_t& left, const operater& oper, const right_t& 
                 case operater::ROOT: {
                     return left <= 0 ? variant() : pow(right, 1.0 / left);
                 }
+                case operater::HYPOT: {
+                    return hypot(left, right);
+                }
                 case operater::DEG: {
-                    return right * 180.0 / PI;
+                    return right * 180 / PI;
                 }
                 case operater::RAD: {
-                    return right * PI / 180.0;
+                    return right * PI / 180;
                 }
                 case operater::SIN: {
                     return sin(right);
                 }
+                case operater::ARCSIN: {
+                    return right < -1 || 1 < right ? variant() : asin(right);
+                }
                 case operater::COS: {
                     return cos(right);
                 }
+                case operater::ARCCOS: {
+                    return right < -1 || 1 < right ? variant() : acos(right);
+                }
                 case operater::TAN: {
-                    return tan(right);
+                    return is_zahlen(right / PI - 0.5) ? variant() : tan(right);
+                }
+                case operater::ARCTAN: {
+                    return atan(right);
                 }
                 case operater::COT: {
-                    return 1.0 / tan(right);
+                    return is_zahlen(right / PI) ? variant() : cos(right) / sin(right);
+                }
+                case operater::ARCCOT: {
+                    return PI / 2 - atan(right);
+                }
+                case operater::SEC: {
+                    return is_zahlen(right / PI - 0.5) ? variant() : 1.0 / cos(right);
+                }
+                case operater::ARCSEC: {
+                    return -1 < right && right < 1 ? variant() : acos(1.0 / right);
+                }
+                case operater::CSC: {
+                    return is_zahlen(right / PI) ? variant() : 1.0 / sin(right);
+                }
+                case operater::ARCCSC: {
+                    return -1 < right && right < 1 ? variant() : asin(1.0 / right);
                 }
                 case operater::VECTOR: {
                     return std::polar(static_cast<real_t>(left), static_cast<real_t>(right));
@@ -224,10 +274,10 @@ inline variant operate(const complex_t& left, const operater& oper, const comple
                 return left / right;
             }
             case operater::ABS:
-            case operater::AMP: {
+            case operater::AMPLITUDE: {
                 return abs(right);
             }
-            case operater::ARG: {
+            case operater::ANGLE: {
                 return arg(right);
             }
         }
@@ -270,7 +320,8 @@ inline variant operate(const string_t& left, const operater& oper, const string_
 
 inline variant operate(const operater& oper, const list_t& right) {
     if (operater::EVALUATION == oper.type && !right.empty()) {
-        std::vector<real_t> values(right.size());
+        size_t size = right.size();
+        std::vector<real_t> values(size);
         std::transform(right.begin(), right.end(), values.begin(), [](const variant& var) { return var.to_real(); });
         switch (oper.evaluation) {
             case operater::SUM:
@@ -281,22 +332,23 @@ inline variant operate(const operater& oper, const list_t& right) {
                 if (operater::SUM == oper.evaluation) {
                     return sum;
                 }
-                size_t size = values.size();
+
                 real_t average = sum / size;
                 if (operater::AVERAGE == oper.evaluation) {
                     return average;
                 }
+
                 real_t variance = std::accumulate(values.begin(), values.end(), 0.0, [average](real_t acc, real_t val) {
                     return acc + pow(val - average, 2);
                 }) / size;
                 if (operater::VARIANCE == oper.evaluation) {
                     return variance;
                 }
+
                 return sqrt(variance);
             }
             case operater::MEDIAN: {
                 std::sort(values.begin(), values.end());
-                size_t size = values.size();
                 size_t index = size / 2;
                 return (size % 2) ? values[index] : (values[index - 1] + values[index]) / 2;
             }
@@ -305,6 +357,7 @@ inline variant operate(const operater& oper, const list_t& right) {
                 for (real_t val : values) {
                     ++counters[val];
                 }
+
                 using counter_t = decltype(counters)::const_reference;
                 return std::max_element(counters.begin(), counters.end(), [](counter_t c1, counter_t c2) {
                     return c1.second < c2.second;
@@ -319,6 +372,33 @@ inline variant operate(const operater& oper, const list_t& right) {
             case operater::RANGE: {
                 return *std::max_element(values.begin(), values.end()) -
                        *std::min_element(values.begin(), values.end());
+            }
+            case operater::ARRANGEMENT:
+            case operater::COMBINATION: {
+                if (size < 2) {
+                    return variant();
+                }
+
+                integer_t n = static_cast<integer_t>(values[0]);
+                integer_t m = static_cast<integer_t>(values[1]);
+                if (n < 0 || m < 0 || n < m) {
+                    return variant();
+                }
+
+                integer_t res = factorial(n) / factorial(n - m);
+                if (operater::ARRANGEMENT == oper.evaluation) {
+                    return res;
+                }
+
+                return res / factorial(m);
+            }
+            case operater::LERP: {
+                if (size < 3) {
+                    return variant();
+                }
+
+                real_t t = static_cast<real_t>(values[2]);
+                return (1 - t) * values[0] + t * values[1];
             }
         }
     }
