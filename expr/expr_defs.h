@@ -5,8 +5,8 @@
 
 namespace expr {
 
-const real_t PI         = 3.141592653589793;
-const real_t NATURAL    = 2.718281828459045;
+const real_t CONST_PI   = 3.1415926535897932384626433832795;
+const real_t CONST_E    = 2.7182818284590452353602874713527;
 
 using node_list = std::vector<struct node*>;
 
@@ -97,8 +97,8 @@ struct operater {
         MAX,                // 1 // 1  // max
         MIN,                // 1 // 1  // min
         RANGE,              // 1 // 1  // range
-        ARRANGEMENT,        // 1 // 1  // arra
-        COMBINATION,        // 1 // 1  // comb
+        ARRANGEMENT,        // 1 // 1  // A
+        COMBINATION,        // 1 // 1  // C
         LERP                // 1 // 1  // lerp
     };
 
@@ -116,7 +116,6 @@ struct operater {
 struct object {
     enum object_type {
         BOOLEAN,
-        INTEGER,
         REAL,
         COMPLEX,
         STRING,
@@ -127,7 +126,6 @@ struct object {
     object_type             type;
     union {
         bool                boolean;
-        integer_t           integer;
         real_t              real;
         complex_t*          complex;
         string_t*           string;
@@ -205,8 +203,7 @@ struct node {
     }
 
     bool is_numeric() const {
-        return OBJECT == type &&
-               (object::INTEGER == obj->type || object::REAL == obj->type || object::COMPLEX == obj->type);
+        return OBJECT == type && (object::REAL == obj->type || object::COMPLEX == obj->type);
     }
 
     bool is_string() const {

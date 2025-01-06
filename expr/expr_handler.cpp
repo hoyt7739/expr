@@ -175,54 +175,9 @@ handler::string_list handler::params(const string_t& expr) {
     return list;
 }
 
-string_t handler::convert(const string_t& expr, const param_convertor& convertor) {
-    if (!convertor) {
-        return expr;
-    }
-
-    auto replace = [](string_t& str, const string_t& before, const string_t& after) {
-        for (size_t pos = 0; string_t::npos != (pos = str.find(before, pos)); pos += after.size()) {
-            str.replace(pos, before.size(), after);
-        }
-    };
-
+variant handler::calculate(const string_t& expr, const param_replacer& replacer) {
     node* nd = parse(expr);
-    string_list list = params(nd);
-    delete nd;
-
-    string_t converted = expr;
-    for (string_t& param : list) {
-        string_t before = STR('[') + param + STR(']');
-        variant var = convertor(param);
-        switch (var.type) {
-            case variant::STRING: {
-                replace(converted, before, STR('[') + *var.string + STR(']'));
-                break;
-            }
-            case variant::LIST: {
-                if (1 == var.list->size()) {
-                    replace(converted, before, STR('[') + var.list->front().to_string() + STR(']'));
-                } else if (1 < var.list->size()) {
-                    string_t after;
-                    for (variant& item : *var.list) {
-                        if (!after.empty()) {
-                            after += STR(',');
-                        }
-                        after += STR('[') + item.to_string() + STR(']');
-                    }
-                    replace(converted, before, STR('(') + after + STR(')'));
-                }
-                break;
-            }
-        }
-    }
-
-    return converted;
-}
-
-variant handler::calculate(const string_t& expr, const param_calculator& calculator) {
-    node* nd = parse(expr);
-    variant var = calculate(nd, calculator);
+    variant var = calculate(nd, replacer);
     delete nd;
     return var;
 }
@@ -237,9 +192,6 @@ string_t handler::text(const node* nd) {
             switch (nd->obj->type) {
                 case object::BOOLEAN: {
                     return nd->obj->boolean ? STR("true") : STR("false");
-                }
-                case object::INTEGER: {
-                    return to_string(nd->obj->integer);
                 }
                 case object::REAL: {
                     return to_string(nd->obj->real);
@@ -357,7 +309,7 @@ handler::string_list handler::params(const node* nd) {
     return string_list();
 }
 
-variant handler::calculate(const node* nd, const param_calculator& calculator) {
+variant handler::calculate(const node* nd, const param_replacer& replacer) {
     if (!nd) {
         return variant();
     }
@@ -367,9 +319,6 @@ variant handler::calculate(const node* nd, const param_calculator& calculator) {
             switch (nd->obj->type) {
                 case object::BOOLEAN: {
                     return nd->obj->boolean;
-                }
-                case object::INTEGER: {
-                    return nd->obj->integer;
                 }
                 case object::REAL: {
                     return nd->obj->real;
@@ -381,22 +330,22 @@ variant handler::calculate(const node* nd, const param_calculator& calculator) {
                     return *nd->obj->string;
                 }
                 case object::PARAM: {
-                    if (calculator) {
-                        return calculator(*nd->obj->param);
+                    if (replacer) {
+                        return replacer(*nd->obj->param);
                     }
                     break;
                 }
                 case object::LIST: {
                     list_t list(nd->obj->list->size());
                     std::transform(nd->obj->list->begin(), nd->obj->list->end(), list.begin(),
-                                   [&calculator](node* nd) { return calculate(nd, calculator); });
+                                   [&replacer](node* nd) { return calculate(nd, replacer); });
                     return list;
                 }
             }
             break;
         }
         case node::EXPR: {
-            return operate(calculate(nd->expr.left, calculator), *nd->expr.oper, calculate(nd->expr.right, calculator));
+            return operate(calculate(nd->expr.left, replacer), *nd->expr.oper, calculate(nd->expr.right, replacer));
         }
     }
 
@@ -528,6 +477,14 @@ node* handler::parse_operater(operater::operater_mode mode) {
                     oper = make_arithmetic(operater::NEGATIVE);
                     break;
                 }
+                case STR('A'): {
+                    oper = make_evaluation(operater::ARRANGEMENT);
+                    break;
+                }
+                case STR('C'): {
+                    oper = make_evaluation(operater::COMBINATION);
+                    break;
+                }
                 case STR('a'): {
                     if (try_match(STR("bs"))) {
                         oper = make_arithmetic(operater::ABS);
@@ -541,8 +498,6 @@ node* handler::parse_operater(operater::operater_mode mode) {
                         oper = make_arithmetic(operater::AMPLITUDE);
                     } else if (try_match(STR("ng"))) {
                         oper = make_arithmetic(operater::ANGLE);
-                    } else if (try_match(STR("rra"))) {
-                        oper = make_evaluation(operater::ARRANGEMENT);
                     } else if (try_match(STR("sec"))) {
                         oper = make_arithmetic(operater::ARCSEC);
                     } else if (try_match(STR("sin"))) {
@@ -557,8 +512,6 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 case STR('c'): {
                     if (try_match(STR("eil"))) {
                         oper = make_arithmetic(operater::CEIL);
-                    } else if (try_match(STR("omb"))) {
-                        oper = make_evaluation(operater::COMBINATION);
                     } else if (try_match(STR("os"))) {
                         oper = make_arithmetic(operater::COS);
                     } else if (try_match(STR("ot"))) {
@@ -718,6 +671,12 @@ node* handler::parse_operater(operater::operater_mode mode) {
                     oper = make_arithmetic(operater::POW);
                     break;
                 }
+                case STR('h'): {
+                    if (try_match(STR("p"))) {
+                        oper = make_arithmetic(operater::HYPOT);
+                    }
+                    break;
+                }
                 case STR('l'): {
                     if (try_match(STR("og"))) {
                         oper = make_arithmetic(operater::LOG);
@@ -797,16 +756,16 @@ node* handler::parse_constant() {
     } else if (try_match(STR("true"))) {
         obj = make_boolean(true);
     } else if (try_match(STR("π")) || try_match(STR("pi"))) {
-        obj = make_real(PI);
+        obj = make_real(CONST_PI);
     } else if (try_match(STR("e"))) {
-        obj = make_real(NATURAL);
+        obj = make_real(CONST_E);
     } else if (try_match(STR("rand"))) {
         static unsigned s = 0;
         if (!s) {
             s = (unsigned)time(nullptr);
             srand(s);
         }
-        obj = make_integer(rand());
+        obj = make_real(rand());
     }
 
     return obj ? make_node(obj) : nullptr;
@@ -831,14 +790,9 @@ node* handler::parse_numeric() {
         return nullptr;
     }
 
-    bool is_real;
     switch (std::count(str.begin(), str.end(), STR('.'))) {
-        case 0: {
-            is_real = false;
-            break;
-        }
+        case 0:
         case 1: {
-            is_real = true;
             break;
         }
         default: {
@@ -865,17 +819,8 @@ node* handler::parse_numeric() {
         }
     }
 
-    object* obj = nullptr;
-    if (is_imag) {
-        obj = make_complex(0.0, std::stod(str));
-    } else {
-        if (is_real) {
-            obj = make_real(std::stod(str));
-        } else {
-            obj = make_integer(std::stoll(str));
-        }
-    }
-
+    real_t real = to_real(str);
+    object* obj = is_imag ? make_complex(0, real) : make_real(real);
     return obj ? make_node(obj) : nullptr;
 }
 

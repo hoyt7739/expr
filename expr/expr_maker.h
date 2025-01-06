@@ -51,13 +51,6 @@ inline object* make_boolean(bool boolean) {
     return obj;
 }
 
-inline object* make_integer(integer_t integer) {
-    object* obj = new object;
-    obj->type = object::INTEGER;
-    obj->integer = integer;
-    return obj;
-}
-
 inline object* make_real(real_t real) {
     object* obj = new object;
     obj->type = object::REAL;

@@ -9,20 +9,18 @@ namespace expr {
 class handler {
 public:
     using string_list = std::vector<string_t>;
-    using param_convertor = std::function<variant(const string_t&)>;
-    using param_calculator = std::function<variant(const string_t&)>;
+    using param_replacer = std::function<variant(const string_t&)>;
 
 public:
     static node* parse(const string_t& expr);
     static bool check(const string_t& expr);
     static string_list params(const string_t& expr);
-    static string_t convert(const string_t& expr, const param_convertor& convertor = nullptr);
-    static variant calculate(const string_t& expr, const param_calculator& calculator = nullptr);
+    static variant calculate(const string_t& expr, const param_replacer& replacer = nullptr);
 
     static string_t text(const node* nd);
     static string_t expr(const node* nd);
     static string_list params(const node* nd);
-    static variant calculate(const node* nd, const param_calculator& calculator = nullptr);
+    static variant calculate(const node* nd, const param_replacer& replacer = nullptr);
 
 private:
     explicit handler(const string_t& expr);

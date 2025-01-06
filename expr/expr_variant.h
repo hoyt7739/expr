@@ -8,7 +8,6 @@
 
 namespace expr {
 
-using integer_t     = long long;
 using real_t        = double;
 using complex_t     = std::complex<real_t>;
 using string_t      = std::wstring;
@@ -17,18 +16,21 @@ using list_t        = std::vector<struct variant>;
 
 #define STR(s) L##s
 
-inline string_t to_string(integer_t val) {
-    return std::to_wstring(val);
+inline real_t to_real(const string_t& str) {
+    return std::stold(str);
 }
 
-inline string_t to_string(real_t val) {
-    string_t str = std::to_wstring(val);
-    while (STR('0') == str.back()) {
-        str.pop_back();
+inline string_t to_string(real_t real) {
+    string_t str = std::to_wstring(real);
+    if (string_t::npos != str.find(STR('.'))) {
+        while (STR('0') == str.back()) {
+            str.pop_back();
+        }
+        if (STR('.') == str.back()) {
+            str.pop_back();
+        }
     }
-    if (STR('.') == str.back()) {
-        str.pop_back();
-    }
+
     return str;
 }
 
@@ -36,7 +38,6 @@ struct variant {
     enum variant_type {
         INVALID,
         BOOLEAN,
-        INTEGER,
         REAL,
         COMPLEX,
         STRING,
@@ -46,7 +47,6 @@ struct variant {
     variant_type    type;
     union {
         bool        boolean;
-        integer_t   integer;
         real_t      real;
         complex_t*  complex;
         string_t*   string;
@@ -55,7 +55,6 @@ struct variant {
 
     variant() : type(INVALID) {}
     variant(bool value) : type(BOOLEAN), boolean(value) {}
-    variant(integer_t value) : type(INTEGER), integer(value) {}
     variant(real_t value) : type(REAL), real(value) {}
     variant(const complex_t& value) : type(COMPLEX), complex(new complex_t(value)) {}
     variant(const string_t& value) : type(STRING), string(new string_t(value)) {}
@@ -120,14 +119,11 @@ struct variant {
             case BOOLEAN: {
                 return boolean;
             }
-            case INTEGER: {
-                return 0 != integer;
-            }
             case REAL: {
-                return 0.0 != real;
+                return 0 != real;
             }
             case COMPLEX: {
-                return 0.0 != complex->real() && 0.0 != complex->imag();
+                return 0 != complex->real() && 0 != complex->imag();
             }
             case STRING: {
                 return !string->empty();
@@ -137,35 +133,10 @@ struct variant {
         return false;
     }
 
-    integer_t to_integer() const {
-        switch (type) {
-            case BOOLEAN: {
-                return boolean;
-            }
-            case INTEGER: {
-                return integer;
-            }
-            case REAL: {
-                return static_cast<integer_t>(real);
-            }
-            case COMPLEX: {
-                return static_cast<integer_t>(complex->real());
-            }
-            case STRING: {
-                return std::stoll(*string);
-            }
-        }
-
-        return 0ll;
-    }
-
     real_t to_real() const {
         switch (type) {
             case BOOLEAN: {
                 return boolean;
-            }
-            case INTEGER: {
-                return static_cast<real_t>(integer);
             }
             case REAL: {
                 return real;
@@ -174,11 +145,11 @@ struct variant {
                 return complex->real();
             }
             case STRING: {
-                return std::stod(*string);
+                return expr::to_real(*string);
             }
         }
 
-        return 0.0;
+        return real_t();
     }
 
     complex_t to_complex() const {
@@ -193,9 +164,6 @@ struct variant {
         switch (type) {
             case BOOLEAN: {
                 return boolean ? STR("true") : STR("false");
-            }
-            case INTEGER: {
-                return expr::to_string(integer);
             }
             case REAL: {
                 return expr::to_string(real);
