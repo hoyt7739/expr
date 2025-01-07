@@ -8,38 +8,42 @@
 
 namespace expr {
 
-inline operater* make_arithmetic(operater::arithmetic_operater arithmetic) {
+inline operater* make_logic(operater::logic_operater logic) {
     operater* oper = new operater;
-    oper->type = operater::ARITHMETIC;
-    oper->mode = static_cast<operater::operater_mode>(std::stoi(EXTRA_ARITHMETIC_OPERATER.at(arithmetic).at(0)));
-    oper->priority = std::stoi(EXTRA_ARITHMETIC_OPERATER.at(arithmetic).at(1));
-    oper->arithmetic = arithmetic;
+    oper->type = operater::LOGIC;
+    oper->mode = static_cast<operater::operater_mode>(EXTRA_LOGIC_OPERATER.number(logic, 0));
+    oper->postpose = EXTRA_LOGIC_OPERATER.number(logic, 3);
+    oper->priority = EXTRA_LOGIC_OPERATER.number(logic, 1);
+    oper->logic = logic;
     return oper;
 }
 
 inline operater* make_compare(operater::compare_operater compare) {
     operater* oper = new operater;
     oper->type = operater::COMPARE;
-    oper->mode = static_cast<operater::operater_mode>(std::stoi(EXTRA_COMPARE_OPERATER.at(compare).at(0)));
-    oper->priority = std::stoi(EXTRA_COMPARE_OPERATER.at(compare).at(1));
+    oper->mode = static_cast<operater::operater_mode>(EXTRA_COMPARE_OPERATER.number(compare, 0));
+    oper->postpose = EXTRA_COMPARE_OPERATER.number(compare, 3);
+    oper->priority = EXTRA_COMPARE_OPERATER.number(compare, 1);
     oper->compare = compare;
     return oper;
 }
 
-inline operater* make_logic(operater::logic_operater logic) {
+inline operater* make_arithmetic(operater::arithmetic_operater arithmetic) {
     operater* oper = new operater;
-    oper->type = operater::LOGIC;
-    oper->mode = static_cast<operater::operater_mode>(std::stoi(EXTRA_LOGIC_OPERATER.at(logic).at(0)));
-    oper->priority = std::stoi(EXTRA_LOGIC_OPERATER.at(logic).at(1));
-    oper->logic = logic;
+    oper->type = operater::ARITHMETIC;
+    oper->mode = static_cast<operater::operater_mode>(EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 0));
+    oper->postpose = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 3);
+    oper->priority = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 1);
+    oper->arithmetic = arithmetic;
     return oper;
 }
 
 inline operater* make_evaluation(operater::evaluation_operater evaluation) {
     operater* oper = new operater;
     oper->type = operater::EVALUATION;
-    oper->mode = static_cast<operater::operater_mode>(std::stoi(EXTRA_EVALUATION_OPERATER.at(evaluation).at(0)));
-    oper->priority = std::stoi(EXTRA_EVALUATION_OPERATER.at(evaluation).at(1));
+    oper->mode = static_cast<operater::operater_mode>(EXTRA_EVALUATION_OPERATER.number(evaluation, 0));
+    oper->postpose = EXTRA_EVALUATION_OPERATER.number(evaluation, 3);
+    oper->priority = EXTRA_EVALUATION_OPERATER.number(evaluation, 1);
     oper->evaluation = evaluation;
     return oper;
 }

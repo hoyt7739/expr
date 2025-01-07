@@ -15,16 +15,15 @@ inline bool test_link(const node* parent, node::node_side side, const node* chil
     }
 
     if (!child) {
-        return node::LEFT == side && operater::UNARY == parent->expr.oper->mode;
+        return (operater::UNARY == parent->expr.oper->mode) &&
+               (parent->expr.oper->postpose ? node::RIGHT == side : node::LEFT == side);
     }
 
     switch (parent->expr.oper->type) {
-        case operater::LOGIC: {
-            return child->is_boolean_result();
-        }
-        case operater::EVALUATION: {
-            return child->is_list();
-        }
+    case operater::LOGIC:
+        return child->is_boolean_result();
+    case operater::EVALUATION:
+        return child->is_list();
     }
 
     return child->is_value_result() || child->is_list();
@@ -36,22 +35,18 @@ inline bool test_node(const node* nd) {
     }
 
     switch (nd->type) {
-        case node::OBJECT: {
-            if (object::LIST == nd->obj->type) {
-                for (node* item : *nd->obj->list) {
-                    if (!test_node(item)) {
-                        return false;
-                    }
+    case node::OBJECT:
+        if (object::LIST == nd->obj->type) {
+            for (node* item : *nd->obj->list) {
+                if (!test_node(item)) {
+                    return false;
                 }
             }
-            return true;
         }
-        case node::EXPR: {
-            return test_link(nd, node::LEFT, nd->expr.left) &&
-                   test_link(nd, node::RIGHT, nd->expr.right) &&
-                   test_node(nd->expr.left) &&
-                   test_node(nd->expr.right);
-        }
+        return true;
+    case node::EXPR:
+        return test_link(nd, node::LEFT, nd->expr.left) && test_link(nd, node::RIGHT, nd->expr.right) &&
+               test_node(nd->expr.left) && test_node(nd->expr.right);
     }
 
     return false;
@@ -62,24 +57,16 @@ inline bool link_node(node* parent, node::node_side side, node* child) {
         return false;
     }
 
-    if (operater::UNARY == parent->expr.oper->mode && node::LEFT == side) {
+    if ((operater::UNARY == parent->expr.oper->mode) &&
+        (parent->expr.oper->postpose ? node::RIGHT == side : node::LEFT == side)) {
         return !child;
     }
 
-    switch (side) {
-        case node::LEFT: {
-            parent->expr.left = child;
-            break;
-        }
-        case node::RIGHT: {
-            parent->expr.right = child;
-            break;
-        }
-        default: {
-            return false;
-        }
+    if (!child) {
+        return false;
     }
 
+    (node::LEFT == side ? parent->expr.left : parent->expr.right) = child;
     child->parent = parent;
 
     return true;
@@ -188,61 +175,51 @@ string_t handler::text(const node* nd) {
     }
 
     switch (nd->type) {
-        case node::OBJECT: {
-            switch (nd->obj->type) {
-                case object::BOOLEAN: {
-                    return nd->obj->boolean ? STR("true") : STR("false");
-                }
-                case object::REAL: {
-                    return to_string(nd->obj->real);
-                }
-                case object::COMPLEX: {
-                    real_t real = nd->obj->complex->real();
-                    real_t imag = nd->obj->complex->imag();
-                    if (!imag) {
-                        return to_string(real);
-                    }
-                    if (!real) {
-                        return to_string(imag) + STR('i');
-                    }
-                    return to_string(real) + STR('+') + to_string(imag) + STR('i');
-                }
-                case object::STRING: {
-                    return STR('\"') + *nd->obj->string + STR('\"');
-                }
-                case object::PARAM: {
-                    return STR('[') + *nd->obj->param + STR(']');
-                }
-                case object::LIST: {
-                    string_t str;
-                    for (node* item : *nd->obj->list) {
-                        if (!str.empty()) {
-                            str += STR(',');
-                        }
-                        str += expr(item);
-                    }
-                    return STR('(') + str + STR(')');
-                }
+    case node::OBJECT:
+        switch (nd->obj->type) {
+        case object::BOOLEAN:
+            return nd->obj->boolean ? STR("true") : STR("false");
+        case object::REAL:
+            return to_string(nd->obj->real);
+        case object::COMPLEX: {
+            real_t real = nd->obj->complex->real();
+            real_t imag = nd->obj->complex->imag();
+            if (!imag) {
+                return to_string(real);
             }
-            break;
-        }
-        case node::EXPR: {
-            switch (nd->expr.oper->type) {
-                case operater::ARITHMETIC: {
-                    return EXTRA_ARITHMETIC_OPERATER.at(nd->expr.oper->arithmetic).at(2);
-                }
-                case operater::COMPARE: {
-                    return EXTRA_COMPARE_OPERATER.at(nd->expr.oper->compare).at(2);
-                }
-                case operater::LOGIC: {
-                    return EXTRA_LOGIC_OPERATER.at(nd->expr.oper->logic).at(2);
-                }
-                case operater::EVALUATION: {
-                    return EXTRA_EVALUATION_OPERATER.at(nd->expr.oper->evaluation).at(2);
-                }
+            if (!real) {
+                return to_string(imag) + STR('i');
             }
-            break;
+            return to_string(real) + STR('+') + to_string(imag) + STR('i');
         }
+        case object::STRING:
+            return STR('\"') + *nd->obj->string + STR('\"');
+        case object::PARAM:
+            return STR('[') + *nd->obj->param + STR(']');
+        case object::LIST: {
+            string_t str;
+            for (node* item : *nd->obj->list) {
+                if (!str.empty()) {
+                    str += STR(',');
+                }
+                str += expr(item);
+            }
+            return STR('(') + str + STR(')');
+        }
+        }
+        break;
+    case node::EXPR:
+        switch (nd->expr.oper->type) {
+        case operater::LOGIC:
+            return EXTRA_LOGIC_OPERATER.at(nd->expr.oper->logic).at(2);
+        case operater::COMPARE:
+            return EXTRA_COMPARE_OPERATER.at(nd->expr.oper->compare).at(2);
+        case operater::ARITHMETIC:
+            return EXTRA_ARITHMETIC_OPERATER.at(nd->expr.oper->arithmetic).at(2);
+        case operater::EVALUATION:
+            return EXTRA_EVALUATION_OPERATER.at(nd->expr.oper->evaluation).at(2);
+        }
+        break;
     }
 
     return string_t();
@@ -256,22 +233,21 @@ string_t handler::expr(const node* nd) {
     string_t str = text(nd);
 
     switch (nd->type) {
-        case node::OBJECT: {
-            return str;
+    case node::OBJECT:
+        return str;
+    case node::EXPR: {
+        string_t left = expr(nd->expr.left);
+        string_t right = expr(nd->expr.right);
+        if (nd->expr.left && node::EXPR == nd->expr.left->type &&
+            nd->expr.oper->priority < nd->expr.left->expr.oper->priority) {
+            left = STR('(') + left + STR(')');
         }
-        case node::EXPR: {
-            string_t left = expr(nd->expr.left);
-            string_t right = expr(nd->expr.right);
-            if (nd->expr.left && node::EXPR == nd->expr.left->type &&
-                nd->expr.oper->priority < nd->expr.left->expr.oper->priority) {
-                left = STR('(') + left + STR(')');
-            }
-            if (nd->expr.right && node::EXPR == nd->expr.right->type &&
-                nd->expr.oper->priority <= nd->expr.right->expr.oper->priority) {
-                right = STR('(') + right + STR(')');
-            }
-            return left + str + right;
+        if (nd->expr.right && node::EXPR == nd->expr.right->type &&
+            nd->expr.oper->priority <= nd->expr.right->expr.oper->priority) {
+            right = STR('(') + right + STR(')');
         }
+        return left + str + right;
+    }
     }
 
     return string_t();
@@ -289,21 +265,17 @@ handler::string_list handler::params(const node* nd) {
     };
 
     switch (nd->type) {
-        case node::OBJECT: {
-            switch (nd->obj->type) {
-                case object::PARAM: {
-                    return string_list({*nd->obj->param});
-                }
-                case object::LIST: {
-                    return std::accumulate(nd->obj->list->begin(), nd->obj->list->end(), string_list(),
-                        [&merge](const string_list& list, node* nd) { return merge(list, params(nd)); });
-                }
-            }
-            break;
+    case node::OBJECT:
+        switch (nd->obj->type) {
+        case object::PARAM:
+            return string_list({*nd->obj->param});
+        case object::LIST:
+            return std::accumulate(nd->obj->list->begin(), nd->obj->list->end(), string_list(),
+                                   [&merge](const string_list& list, node* nd) { return merge(list, params(nd)); });
         }
-        case node::EXPR: {
-            return merge(params(nd->expr.left), params(nd->expr.right));
-        }
+        break;
+    case node::EXPR:
+        return merge(params(nd->expr.left), params(nd->expr.right));
     }
 
     return string_list();
@@ -315,38 +287,31 @@ variant handler::calculate(const node* nd, const param_replacer& replacer) {
     }
 
     switch (nd->type) {
-        case node::OBJECT: {
-            switch (nd->obj->type) {
-                case object::BOOLEAN: {
-                    return nd->obj->boolean;
-                }
-                case object::REAL: {
-                    return nd->obj->real;
-                }
-                case object::COMPLEX: {
-                    return *nd->obj->complex;
-                }
-                case object::STRING: {
-                    return *nd->obj->string;
-                }
-                case object::PARAM: {
-                    if (replacer) {
-                        return replacer(*nd->obj->param);
-                    }
-                    break;
-                }
-                case object::LIST: {
-                    list_t list(nd->obj->list->size());
-                    std::transform(nd->obj->list->begin(), nd->obj->list->end(), list.begin(),
-                                   [&replacer](node* nd) { return calculate(nd, replacer); });
-                    return list;
-                }
+    case node::OBJECT:
+        switch (nd->obj->type) {
+        case object::BOOLEAN:
+            return nd->obj->boolean;
+        case object::REAL:
+            return nd->obj->real;
+        case object::COMPLEX:
+            return *nd->obj->complex;
+        case object::STRING:
+            return *nd->obj->string;
+        case object::PARAM:
+            if (replacer) {
+                return replacer(*nd->obj->param);
             }
             break;
+        case object::LIST: {
+            list_t list(nd->obj->list->size());
+            std::transform(nd->obj->list->begin(), nd->obj->list->end(), list.begin(),
+                           [&replacer](node* nd) { return calculate(nd, replacer); });
+            return list;
         }
-        case node::EXPR: {
-            return operate(calculate(nd->expr.left, replacer), *nd->expr.oper, calculate(nd->expr.right, replacer));
         }
+        break;
+    case node::EXPR:
+        return operate(calculate(nd->expr.left, replacer), *nd->expr.oper, calculate(nd->expr.right, replacer));
     }
 
     return variant();
@@ -413,48 +378,51 @@ node* handler::parse_atom() {
     parse_state state = parse_state::SEGMENT_OPENING;
     while (true) {
         switch (state) {
-            case parse_state::SEGMENT_OPENING: {
-                if (try_match(STR("("))) {
-                    CHECK_VALID(pending = parse_atom());
-                    if (try_match(STR(","))) {
-                        node* list_node = parse_list(true);
-                        CHECK_VALID(list_node);
-                        list_node->obj->list->insert(list_node->obj->list->begin(), pending);
-                        pending = list_node;
-                    } else {
-                        CHECK_VALID(try_match(STR(")")));
-                    }
-                    state = parse_state::SEGMENT_CLOSED;
+        case parse_state::SEGMENT_OPENING:
+            if (try_match(STR("("))) {
+                CHECK_VALID(pending = parse_atom());
+                if (try_match(STR(","))) {
+                    node* list_node = parse_list(true);
+                    CHECK_VALID(list_node);
+                    list_node->obj->list->insert(list_node->obj->list->begin(), pending);
+                    pending = list_node;
                 } else {
-                    current = parse_operater(operater::UNARY);
-                    if (current) {
-                        bool is_evaluation = operater::EVALUATION == current->expr.oper->type;
-                        CHECK_VALID(insert_node(root, semi, pending, current));
-                        if (is_evaluation) {
-                            CHECK_VALID(pending = parse_list(false));
-                            state = parse_state::SEGMENT_CLOSED;
-                        }
-                    } else {
-                        CHECK_VALID(pending = parse_object());
+                    CHECK_VALID(try_match(STR(")")));
+                }
+                state = parse_state::SEGMENT_CLOSED;
+            } else {
+                current = parse_operater(operater::UNARY);
+                if (current) {
+                    CHECK_VALID(!current->expr.oper->postpose);
+                    bool is_evaluation = operater::EVALUATION == current->expr.oper->type;
+                    CHECK_VALID(insert_node(root, semi, pending, current));
+                    if (is_evaluation) {
+                        CHECK_VALID(pending = parse_list(false));
                         state = parse_state::SEGMENT_CLOSED;
                     }
+                } else {
+                    CHECK_VALID(pending = parse_object());
+                    state = parse_state::SEGMENT_CLOSED;
                 }
-                break;
             }
-            case parse_state::SEGMENT_CLOSED: {
-                if (atom_ended()) {
-                    CHECK_VALID(insert_node(root, semi, pending, current = nullptr));
-                    return root;
-                }
+            break;
+        case parse_state::SEGMENT_CLOSED:
+            if (atom_ended()) {
+                CHECK_VALID(insert_node(root, semi, pending, current = nullptr));
+                return root;
+            }
 
-                CHECK_VALID(current = parse_operater(operater::BINARY));
+            current = parse_operater(operater::BINARY);
+            if (current) {
                 CHECK_VALID(insert_node(root, semi, pending, current));
                 state = parse_state::SEGMENT_OPENING;
-                break;
+            } else {
+                current = parse_operater(operater::UNARY);
+                CHECK_VALID(current && current->expr.oper->postpose && insert_node(root, semi, pending, current));
             }
-            default: {
-                CHECK_VALID(false);
-            }
+            break;
+        default:
+            CHECK_VALID(false);
         }
     }
 
@@ -467,260 +435,226 @@ node* handler::parse_operater(operater::operater_mode mode) {
     operater* oper = nullptr;
     char_t ch = get_char();
     switch (mode) {
-        case operater::UNARY: {
-            switch (ch) {
-                case STR('!'): {
-                    oper = make_logic(operater::NOT);
-                    break;
-                }
-                case STR('-'): {
-                    oper = make_arithmetic(operater::NEGATIVE);
-                    break;
-                }
-                case STR('A'): {
-                    oper = make_evaluation(operater::ARRANGEMENT);
-                    break;
-                }
-                case STR('C'): {
-                    oper = make_evaluation(operater::COMBINATION);
-                    break;
-                }
-                case STR('a'): {
-                    if (try_match(STR("bs"))) {
-                        oper = make_arithmetic(operater::ABS);
-                    } else if (try_match(STR("cos"))) {
-                        oper = make_arithmetic(operater::ARCCOS);
-                    } else if (try_match(STR("cot"))) {
-                        oper = make_arithmetic(operater::ARCCOT);
-                    } else if (try_match(STR("csc"))) {
-                        oper = make_arithmetic(operater::ARCCSC);
-                    } else if (try_match(STR("mp"))) {
-                        oper = make_arithmetic(operater::AMPLITUDE);
-                    } else if (try_match(STR("ng"))) {
-                        oper = make_arithmetic(operater::ANGLE);
-                    } else if (try_match(STR("sec"))) {
-                        oper = make_arithmetic(operater::ARCSEC);
-                    } else if (try_match(STR("sin"))) {
-                        oper = make_arithmetic(operater::ARCSIN);
-                    } else if (try_match(STR("tan"))) {
-                        oper = make_arithmetic(operater::ARCTAN);
-                    } else if (try_match(STR("vg"))) {
-                        oper = make_evaluation(operater::AVERAGE);
-                    }
-                    break;
-                }
-                case STR('c'): {
-                    if (try_match(STR("eil"))) {
-                        oper = make_arithmetic(operater::CEIL);
-                    } else if (try_match(STR("os"))) {
-                        oper = make_arithmetic(operater::COS);
-                    } else if (try_match(STR("ot"))) {
-                        oper = make_arithmetic(operater::COT);
-                    } else if (try_match(STR("sc"))) {
-                        oper = make_arithmetic(operater::CSC);
-                    }
-                    break;
-                }
-                case STR('d'): {
-                    if (try_match(STR("eg"))) {
-                        oper = make_arithmetic(operater::DEG);
-                    } else if (try_match(STR("ev"))) {
-                        oper = make_evaluation(operater::DEVIATION);
-                    }
-                    break;
-                }
-                case STR('e'): {
-                    if (try_match(STR("xp"))) {
-                        oper = make_arithmetic(operater::EXP);
-                    }
-                    break;
-                }
-                case STR('f'): {
-                    if (try_match(STR("act"))) {
-                        oper = make_arithmetic(operater::FACTORIAL);
-                    } else if (try_match(STR("loor"))) {
-                        oper = make_arithmetic(operater::FLOOR);
-                    }
-                    break;
-                }
-                case STR('l'): {
-                    if (try_match(STR("erp"))) {
-                        oper = make_evaluation(operater::LERP);
-                    } else if (try_match(STR("g"))) {
-                        oper = make_arithmetic(operater::LG);
-                    } else if (try_match(STR("n"))) {
-                        oper = make_arithmetic(operater::LN);
-                    }
-                    break;
-                }
-                case STR('m'): {
-                    if (try_match(STR("ax"))) {
-                        oper = make_evaluation(operater::MAX);
-                    } else if (try_match(STR("ed"))) {
-                        oper = make_evaluation(operater::MEDIAN);
-                    } else if (try_match(STR("in"))) {
-                        oper = make_evaluation(operater::MIN);
-                    } else if (try_match(STR("ode"))) {
-                        oper = make_evaluation(operater::MODE);
-                    }
-                    break;
-                }
-                case STR('r'): {
-                    if (try_match(STR("ad"))) {
-                        oper = make_arithmetic(operater::RAD);
-                    } else if (try_match(STR("ange"))) {
-                        oper = make_evaluation(operater::RANGE);
-                    } else if (try_match(STR("int"))) {
-                        oper = make_arithmetic(operater::RINT);
-                    } else if (try_match(STR("ound"))) {
-                        oper = make_arithmetic(operater::ROUND);
-                    } else if (try_match(STR("t"))) {
-                        oper = make_arithmetic(operater::SQRT);
-                    }
-                    break;
-                }
-                case STR('s'): {
-                    if (try_match(STR("ec"))) {
-                        oper = make_arithmetic(operater::SEC);
-                    } else if (try_match(STR("in"))) {
-                        oper = make_arithmetic(operater::SIN);
-                    } else if (try_match(STR("um"))) {
-                        oper = make_evaluation(operater::SUM);
-                    }
-                    break;
-                }
-                case STR('t'): {
-                    if (try_match(STR("an"))) {
-                        oper = make_arithmetic(operater::TAN);
-                    } else if (try_match(STR("runc"))) {
-                        oper = make_arithmetic(operater::TRUNC);
-                    }
-                    break;
-                }
-                case STR('v'): {
-                    if (try_match(STR("ar"))) {
-                        oper = make_evaluation(operater::VARIANCE);
-                    }
-                    break;
-                }
-                case STR('√'): {
-                    oper = make_arithmetic(operater::SQRT);
-                    break;
-                }
+    case operater::UNARY:
+        switch (ch) {
+        case STR('!'):
+            oper = make_logic(operater::NOT);
+            break;
+        case STR('-'):
+            oper = make_arithmetic(operater::NEGATIVE);
+            break;
+        case STR('A'):
+            oper = make_evaluation(operater::ARRANGEMENT);
+            break;
+        case STR('C'):
+            oper = make_evaluation(operater::COMBINATION);
+            break;
+        case STR('a'):
+            if (try_match(STR("bs"))) {
+                oper = make_arithmetic(operater::ABS);
+            } else if (try_match(STR("cos"))) {
+                oper = make_arithmetic(operater::ARCCOS);
+            } else if (try_match(STR("cot"))) {
+                oper = make_arithmetic(operater::ARCCOT);
+            } else if (try_match(STR("csc"))) {
+                oper = make_arithmetic(operater::ARCCSC);
+            } else if (try_match(STR("mp"))) {
+                oper = make_arithmetic(operater::AMPLITUDE);
+            } else if (try_match(STR("ng"))) {
+                oper = make_arithmetic(operater::ANGLE);
+            } else if (try_match(STR("sec"))) {
+                oper = make_arithmetic(operater::ARCSEC);
+            } else if (try_match(STR("sin"))) {
+                oper = make_arithmetic(operater::ARCSIN);
+            } else if (try_match(STR("tan"))) {
+                oper = make_arithmetic(operater::ARCTAN);
+            } else if (try_match(STR("vg"))) {
+                oper = make_evaluation(operater::AVERAGE);
             }
             break;
-        }
-        case operater::BINARY: {
-            switch (ch) {
-                case STR('!'): {
-                    if (try_match(STR("="))) {
-                        oper = make_compare(operater::NOT_EQUAL);
-                    }
-                    break;
-                }
-                case STR('#'):
-                case STR('±'): {
-                    oper = make_arithmetic(try_match(STR("%")) ? operater::EXPAND_PERCENT : operater::EXPAND);
-                    break;
-                }
-                case STR('%'): {
-                    oper = make_arithmetic(operater::MOD);
-                    break;
-                }
-                case STR('&'): {
-                    try_match(STR("&"));
-                    oper = make_logic(operater::AND);
-                    break;
-                }
-                case STR('*'): {
-                    oper = make_arithmetic(operater::MULTIPLY);
-                    break;
-                }
-                case STR('+'): {
-                    oper = make_arithmetic(operater::PLUS);
-                    break;
-                }
-                case STR('-'): {
-                    oper = make_arithmetic(operater::MINUS);
-                    break;
-                }
-                case STR('/'): {
-                    oper = make_arithmetic(operater::DIVIDE);
-                    break;
-                }
-                case STR('<'): {
-                    oper = make_compare(try_match(STR("=")) ? operater::LESS_EQUAL : operater::LESS);
-                    break;
-                }
-                case STR('='): {
-                    try_match(STR("="));
-                    oper = make_compare(operater::EQUAL);
-                    break;
-                }
-                case STR('>'): {
-                    oper = make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER);
-                    break;
-                }
-                case STR('?'): {
-                    if (try_match(STR("="))) {
-                        oper = make_compare(operater::REGULAR_MATCH);
-                    }
-                    break;
-                }
-                case STR('^'): {
-                    oper = make_arithmetic(operater::POW);
-                    break;
-                }
-                case STR('h'): {
-                    if (try_match(STR("p"))) {
-                        oper = make_arithmetic(operater::HYPOT);
-                    }
-                    break;
-                }
-                case STR('l'): {
-                    if (try_match(STR("og"))) {
-                        oper = make_arithmetic(operater::LOG);
-                    }
-                    break;
-                }
-                case STR('r'): {
-                    if (try_match(STR("t"))) {
-                        oper = make_arithmetic(operater::ROOT);
-                    }
-                    break;
-                }
-                case STR('v'): {
-                    if (try_match(STR("ec"))) {
-                        oper = make_arithmetic(operater::VECTOR);
-                    }
-                    break;
-                }
-                case STR('|'): {
-                    try_match(STR("|"));
-                    oper = make_logic(operater::OR);
-                    break;
-                }
-                case STR('~'): {
-                    if (try_match(STR("="))) {
-                        oper = make_compare(operater::APPROACH);
-                    }
-                    break;
-                }
-                case STR('√'): {
-                    oper = make_arithmetic(operater::ROOT);
-                    break;
-                }
-                case STR('∠'): {
-                    oper = make_arithmetic(operater::VECTOR);
-                    break;
-                }
-                case STR('⊿'): {
-                    oper = make_arithmetic(operater::HYPOT);
-                    break;
-                }
+        case STR('c'):
+            if (try_match(STR("eil"))) {
+                oper = make_arithmetic(operater::CEIL);
+            } else if (try_match(STR("os"))) {
+                oper = make_arithmetic(operater::COS);
+            } else if (try_match(STR("ot"))) {
+                oper = make_arithmetic(operater::COT);
+            } else if (try_match(STR("sc"))) {
+                oper = make_arithmetic(operater::CSC);
             }
             break;
+        case STR('d'):
+            if (try_match(STR("ev"))) {
+                oper = make_evaluation(operater::DEVIATION);
+            }
+            break;
+        case STR('e'):
+            if (try_match(STR("xp"))) {
+                oper = make_arithmetic(operater::EXP);
+            }
+            break;
+        case STR('f'):
+            if (try_match(STR("loor"))) {
+                oper = make_arithmetic(operater::FLOOR);
+            }
+            break;
+        case STR('l'):
+            if (try_match(STR("erp"))) {
+                oper = make_evaluation(operater::LERP);
+            } else if (try_match(STR("g"))) {
+                oper = make_arithmetic(operater::LG);
+            } else if (try_match(STR("n"))) {
+                oper = make_arithmetic(operater::LN);
+            }
+            break;
+        case STR('m'):
+            if (try_match(STR("ax"))) {
+                oper = make_evaluation(operater::MAX);
+            } else if (try_match(STR("ed"))) {
+                oper = make_evaluation(operater::MEDIAN);
+            } else if (try_match(STR("in"))) {
+                oper = make_evaluation(operater::MIN);
+            } else if (try_match(STR("ode"))) {
+                oper = make_evaluation(operater::MODE);
+            }
+            break;
+        case STR('r'):
+            if (try_match(STR("ange"))) {
+                oper = make_evaluation(operater::RANGE);
+            } else if (try_match(STR("int"))) {
+                oper = make_arithmetic(operater::RINT);
+            } else if (try_match(STR("ound"))) {
+                oper = make_arithmetic(operater::ROUND);
+            } else if (try_match(STR("t"))) {
+                oper = make_arithmetic(operater::SQRT);
+            }
+            break;
+        case STR('s'):
+            if (try_match(STR("ec"))) {
+                oper = make_arithmetic(operater::SEC);
+            } else if (try_match(STR("in"))) {
+                oper = make_arithmetic(operater::SIN);
+            } else if (try_match(STR("um"))) {
+                oper = make_evaluation(operater::SUM);
+            }
+            break;
+        case STR('t'):
+            if (try_match(STR("an"))) {
+                oper = make_arithmetic(operater::TAN);
+            } else if (try_match(STR("odeg"))) {
+                oper = make_arithmetic(operater::TODEG);
+            } else if (try_match(STR("orad"))) {
+                oper = make_arithmetic(operater::TORAD);
+            } else if (try_match(STR("runc"))) {
+                oper = make_arithmetic(operater::TRUNC);
+            }
+            break;
+        case STR('v'):
+            if (try_match(STR("ar"))) {
+                oper = make_evaluation(operater::VARIANCE);
+            }
+            break;
+        case STR('~'):
+            if (try_match(STR("!"))) {
+                oper = make_arithmetic(operater::FACTORIAL);
+            }
+            break;
+        case STR('°'):
+            oper = make_arithmetic(operater::DEG);
+            break;
+        case STR('√'):
+            oper = make_arithmetic(operater::SQRT);
+            break;
         }
+        break;
+    case operater::BINARY:
+        switch (ch) {
+        case STR('!'):
+            if (try_match(STR("="))) {
+                oper = make_compare(operater::NOT_EQUAL);
+            }
+            break;
+        case STR('#'):
+        case STR('±'):
+            oper = make_arithmetic(try_match(STR("%")) ? operater::EXPAND_PERCENT : operater::EXPAND);
+            break;
+        case STR('%'):
+            oper = make_arithmetic(operater::MOD);
+            break;
+        case STR('&'):
+            try_match(STR("&"));
+            oper = make_logic(operater::AND);
+            break;
+        case STR('*'):
+            oper = make_arithmetic(operater::MULTIPLY);
+            break;
+        case STR('+'):
+            oper = make_arithmetic(operater::PLUS);
+            break;
+        case STR('-'):
+            oper = make_arithmetic(operater::MINUS);
+            break;
+        case STR('/'):
+            oper = make_arithmetic(operater::DIVIDE);
+            break;
+        case STR('<'):
+            oper = make_compare(try_match(STR("=")) ? operater::LESS_EQUAL : operater::LESS);
+            break;
+        case STR('='):
+            try_match(STR("="));
+            oper = make_compare(operater::EQUAL);
+            break;
+        case STR('>'):
+            oper = make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER);
+            break;
+        case STR('?'):
+            if (try_match(STR("="))) {
+                oper = make_compare(operater::REGULAR_MATCH);
+            }
+            break;
+        case STR('^'):
+            oper = make_arithmetic(operater::POW);
+            break;
+        case STR('h'):
+            if (try_match(STR("p"))) {
+                oper = make_arithmetic(operater::HYPOT);
+            }
+            break;
+        case STR('l'):
+            if (try_match(STR("og"))) {
+                oper = make_arithmetic(operater::LOG);
+            }
+            break;
+        case STR('r'):
+            if (try_match(STR("t"))) {
+                oper = make_arithmetic(operater::ROOT);
+            }
+            break;
+        case STR('v'):
+            if (try_match(STR("ec"))) {
+                oper = make_arithmetic(operater::VECTOR);
+            }
+            break;
+        case STR('|'):
+            try_match(STR("|"));
+            oper = make_logic(operater::OR);
+            break;
+        case STR('~'):
+            if (try_match(STR("="))) {
+                oper = make_compare(operater::APPROACH);
+            }
+            break;
+        case STR('√'):
+            oper = make_arithmetic(operater::ROOT);
+            break;
+        case STR('∠'):
+            oper = make_arithmetic(operater::VECTOR);
+            break;
+        case STR('⊿'):
+            oper = make_arithmetic(operater::HYPOT);
+            break;
+        }
+        break;
     }
 
     if (!oper && ch) {
@@ -791,32 +725,27 @@ node* handler::parse_numeric() {
     }
 
     switch (std::count(str.begin(), str.end(), STR('.'))) {
-        case 0:
-        case 1: {
-            break;
-        }
-        default: {
-            return nullptr;
-        }
+    case 0:
+    case 1:
+        break;
+    default:
+        return nullptr;
     }
 
     bool is_imag;
     switch (std::count(str.begin(), str.end(), STR('i'))) {
-        case 0: {
-            is_imag = false;
-            break;
-        }
-        case 1: {
-            if (STR('i') != str.back()) {
-                return nullptr;
-            }
-            is_imag = true;
-            str.pop_back();
-            break;
-        }
-        default: {
+    case 0:
+        is_imag = false;
+        break;
+    case 1:
+        if (STR('i') != str.back()) {
             return nullptr;
         }
+        is_imag = true;
+        str.pop_back();
+        break;
+    default:
+        return nullptr;
     }
 
     real_t real = to_real(str);

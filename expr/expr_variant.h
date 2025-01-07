@@ -17,7 +17,9 @@ using list_t        = std::vector<struct variant>;
 #define STR(s) L##s
 
 inline real_t to_real(const string_t& str) {
-    return std::stold(str);
+    real_t real{};
+    try { real = std::stod(str); } catch (...) {}
+    return real;
 }
 
 inline string_t to_string(real_t real) {
@@ -64,18 +66,15 @@ struct variant {
 
     ~variant() {
         switch (type) {
-            case COMPLEX: {
-                delete complex;
-                break;
-            }
-            case STRING: {
-                delete string;
-                break;
-            }
-            case LIST: {
-                delete list;
-                break;
-            }
+        case COMPLEX:
+            delete complex;
+            break;
+        case STRING:
+            delete string;
+            break;
+        case LIST:
+            delete list;
+            break;
         }
     }
 
@@ -86,18 +85,15 @@ struct variant {
 
         memcpy(this, &other, sizeof(variant));
         switch (type) {
-            case COMPLEX: {
-                complex = new complex_t(*other.complex);
-                break;
-            }
-            case STRING: {
-                string = new string_t(*other.string);
-                break;
-            }
-            case LIST: {
-                list = new list_t(*other.list);
-                break;
-            }
+        case COMPLEX:
+            complex = new complex_t(*other.complex);
+            break;
+        case STRING:
+            string = new string_t(*other.string);
+            break;
+        case LIST:
+            list = new list_t(*other.list);
+            break;
         }
 
         return *this;
@@ -116,18 +112,14 @@ struct variant {
 
     bool to_boolean() const {
         switch (type) {
-            case BOOLEAN: {
-                return boolean;
-            }
-            case REAL: {
-                return 0 != real;
-            }
-            case COMPLEX: {
-                return 0 != complex->real() && 0 != complex->imag();
-            }
-            case STRING: {
-                return !string->empty();
-            }
+        case BOOLEAN:
+            return boolean;
+        case REAL:
+            return 0 != real;
+        case COMPLEX:
+            return 0 != complex->real() && 0 != complex->imag();
+        case STRING:
+            return !string->empty();
         }
 
         return false;
@@ -135,18 +127,14 @@ struct variant {
 
     real_t to_real() const {
         switch (type) {
-            case BOOLEAN: {
-                return boolean;
-            }
-            case REAL: {
-                return real;
-            }
-            case COMPLEX: {
-                return complex->real();
-            }
-            case STRING: {
-                return expr::to_real(*string);
-            }
+        case BOOLEAN:
+            return boolean;
+        case REAL:
+            return real;
+        case COMPLEX:
+            return complex->real();
+        case STRING:
+            return expr::to_real(*string);
         }
 
         return real_t();
@@ -162,28 +150,24 @@ struct variant {
 
     string_t to_string() const {
         switch (type) {
-            case BOOLEAN: {
-                return boolean ? STR("true") : STR("false");
-            }
-            case REAL: {
-                return expr::to_string(real);
-            }
-            case COMPLEX: {
-                return expr::to_string(complex->real()) + STR('+') + expr::to_string(complex->imag()) + STR('i');
-            }
-            case STRING: {
-                return *string;
-            }
-            case LIST: {
-                string_t str;
-                for (variant& var : *list) {
-                    if (!str.empty()) {
-                        str += STR(',');
-                    }
-                    str += var.to_string();
+        case BOOLEAN:
+            return boolean ? STR("true") : STR("false");
+        case REAL:
+            return expr::to_string(real);
+        case COMPLEX:
+            return expr::to_string(complex->real()) + STR('+') + expr::to_string(complex->imag()) + STR('i');
+        case STRING:
+            return *string;
+        case LIST: {
+            string_t str;
+            for (variant& var : *list) {
+                if (!str.empty()) {
+                    str += STR(',');
                 }
-                return STR('(') + str + STR(')');
+                str += var.to_string();
             }
+            return STR('(') + str + STR(')');
+        }
         }
 
         return string_t();

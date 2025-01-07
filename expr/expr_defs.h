@@ -12,9 +12,9 @@ using node_list = std::vector<struct node*>;
 
 struct operater {
     enum operater_type {
-        ARITHMETIC,
-        COMPARE,
         LOGIC,
+        COMPARE,
+        ARITHMETIC,
         EVALUATION
     };
 
@@ -23,7 +23,26 @@ struct operater {
         BINARY = 2
     };
 
-    // extradefs(expr::operater::arithmetic_operater) // mode // priority // text
+    // extradefs(expr::operater::logic_operater) // mode // priority // text // postpose
+    enum logic_operater {
+        AND,                // 2 // 9  // &&
+        OR,                 // 2 // 10 // ||
+        NOT                 // 1 // 1  // !
+    };
+
+    // extradefs(expr::operater::compare_operater)
+    enum compare_operater {
+        LESS,               // 2 // 8  // <
+        LESS_EQUAL,         // 2 // 8  // <=
+        EQUAL,              // 2 // 8  // =
+        APPROACH,           // 2 // 8  // ~=
+        REGULAR_MATCH,      // 2 // 8  // ?=
+        NOT_EQUAL,          // 2 // 8  // !=
+        GREATER_EQUAL,      // 2 // 8  // >=
+        GREATER             // 2 // 8  // >
+    };
+
+    // extradefs(expr::operater::arithmetic_operater)
     enum arithmetic_operater {
         PLUS,               // 2 // 5  // +
         MINUS,              // 2 // 5  // -
@@ -37,7 +56,7 @@ struct operater {
         TRUNC,              // 1 // 1  // trunc
         ROUND,              // 1 // 1  // round
         RINT,               // 1 // 1  // rint
-        FACTORIAL,          // 1 // 1  // fact
+        FACTORIAL,          // 1 // 1  // ~!    // 1
         POW,                // 2 // 2  // ^
         EXP,                // 1 // 1  // exp
         LOG,                // 2 // 2  // log
@@ -45,9 +64,10 @@ struct operater {
         LN,                 // 1 // 1  // ln
         SQRT,               // 1 // 1  // √
         ROOT,               // 2 // 2  // √
-        HYPOT,              // 2 // 2  // ⊿
-        DEG,                // 1 // 1  // deg
-        RAD,                // 1 // 1  // rad
+        HYPOT,              // 2 // 6  // ⊿
+        DEG,                // 1 // 1  // °     // 1
+        TODEG,              // 1 // 1  // todeg
+        TORAD,              // 1 // 1  // torad
         SIN,                // 1 // 1  // sin
         ARCSIN,             // 1 // 1  // asin
         COS,                // 1 // 1  // cos
@@ -65,25 +85,6 @@ struct operater {
         ANGLE,              // 1 // 1  // ang
         EXPAND,             // 2 // 7  // ±
         EXPAND_PERCENT      // 2 // 7  // ±%
-    };
-
-    // extradefs(expr::operater::compare_operater)
-    enum compare_operater {
-        LESS,               // 2 // 8  // <
-        LESS_EQUAL,         // 2 // 8  // <=
-        EQUAL,              // 2 // 8  // =
-        APPROACH,           // 2 // 8  // ~=
-        REGULAR_MATCH,      // 2 // 8  // ?=
-        NOT_EQUAL,          // 2 // 8  // !=
-        GREATER_EQUAL,      // 2 // 8  // >=
-        GREATER             // 2 // 8  // >
-    };
-
-    // extradefs(expr::operater::logic_operater)
-    enum logic_operater {
-        AND,                // 2 // 9  // &&
-        OR,                 // 2 // 10 // ||
-        NOT                 // 1 // 1  // !
     };
 
     // extradefs(expr::operater::evaluation_operater)
@@ -104,11 +105,12 @@ struct operater {
 
     operater_type           type;
     operater_mode           mode;
+    bool                    postpose;
     int                     priority;
     union {
-        arithmetic_operater arithmetic;
-        compare_operater    compare;
         logic_operater      logic;
+        compare_operater    compare;
+        arithmetic_operater arithmetic;
         evaluation_operater evaluation;
     };
 };
@@ -162,39 +164,33 @@ struct node {
 
     ~node() {
         switch (type) {
-            case OBJECT: {
-                switch (obj->type) {
-                    case object::COMPLEX: {
-                        delete obj->complex;
-                        break;
+        case OBJECT:
+            switch (obj->type) {
+            case object::COMPLEX:
+                delete obj->complex;
+                break;
+            case object::STRING:
+                delete obj->string;
+                break;
+            case object::PARAM:
+                delete obj->param;
+                break;
+            case object::LIST:
+                if (obj->list) {
+                    for (node* nd : *(obj->list)) {
+                        delete nd;
                     }
-                    case object::STRING: {
-                        delete obj->string;
-                        break;
-                    }
-                    case object::PARAM: {
-                        delete obj->param;
-                        break;
-                    }
-                    case object::LIST: {
-                        if (obj->list) {
-                            for (node* nd : *(obj->list)) {
-                                delete nd;
-                            }
-                            delete obj->list;
-                        }
-                        break;
-                    }
+                    delete obj->list;
                 }
-                delete obj;
                 break;
             }
-            case EXPR: {
-                delete expr.oper;
-                delete expr.left;
-                delete expr.right;
-                break;
-            }
+            delete obj;
+            break;
+        case EXPR:
+            delete expr.oper;
+            delete expr.left;
+            delete expr.right;
+            break;
         }
     }
 
@@ -218,20 +214,20 @@ struct node {
         return OBJECT == type && object::LIST == obj->type;
     }
 
+    bool is_boolean_expr() const {
+        return EXPR == type && (operater::LOGIC == expr.oper->type || operater::COMPARE == expr.oper->type);
+    }
+
     bool is_value_expr() const {
         return EXPR == type && (operater::ARITHMETIC == expr.oper->type || operater::EVALUATION == expr.oper->type);
     }
 
-    bool is_boolean_expr() const {
-        return EXPR == type && (operater::COMPARE == expr.oper->type || operater::LOGIC == expr.oper->type);
+    bool is_boolean_result() const {
+        return is_boolean() || is_boolean_expr();
     }
 
     bool is_value_result() const {
         return is_numeric() || is_string() || is_param() || is_value_expr();
-    }
-
-    bool is_boolean_result() const {
-        return is_boolean() || is_boolean_expr();
     }
 };
 

@@ -33,21 +33,35 @@ function extra_enums() {
         printf "$code" |
             sed -r "s#^$enum_decl#const extra_enums<$scope$enum> EXTRA_${enum^^} =#;
                     s#^\s*##;s#\s*\$##;
-                    s#^([A-Za-z0-9_]+)\s*(,?)\s*//\s*(.*)#    \{ $scope$scope_self\1, \{ L\"\3\" \} \}\2#;
-                    s#\s*//\s*#\", L\"#g" >> $dest_path
+                    s#^([A-Za-z0-9_]+)\s*(,?)\s*//\s*(.*)#    \{ $scope$scope_self\1, \{ EXTRA_STR(\"\3\") \} \}\2#;
+                    s#\s*//\s*#\"), EXTRA_STR(\"#g" >> $dest_path
     done
 
     printf "\n\n#endif\n#endif" >> $dest_path
 }
 
-printf "\xEF\xBB\xBF\
-#ifndef EXTRA_ENUMS\n\
-#define EXTRA_ENUMS\n\n\
+printf "\
+#ifndef EXTRADEFS_H\n\
+#define EXTRADEFS_H\n\n\
 #include <string>\n\
 #include <vector>\n\
 #include <map>\n\n\
-template<class key>\n\
-using extra_enums = std::map<key, std::vector<std::wstring>>;\n\n\
+#define EXTRA_STRING_T std::wstring\n\
+#define EXTRA_STR(s) L##s\n\n\
+template<class key_t>\n\
+class extra_enums : public std::map<key_t, std::vector<EXTRA_STRING_T>> {\n\
+public:\n\
+    using std::map<key_t, std::vector<EXTRA_STRING_T>>::map;\n\n\
+    inline EXTRA_STRING_T text(key_t key, size_t pos) const {\n\
+        auto iter = this->find(key);\n\
+        return this->end() == iter || iter->second.size() <= pos ? EXTRA_STRING_T() : iter->second[pos];\n\
+    }\n\n\
+    inline int number(key_t key, size_t pos) const {\n\
+        int num = 0;\n\
+        try { num = std::stoi(text(key, pos)); } catch (...) {}\n\
+        return num;\n\
+    }\n\
+};\n\n\
 #endif" > $dest_path
 
 for line in $(cat $current_dir/extradefs.depend | tr -d "\r\0"); do
