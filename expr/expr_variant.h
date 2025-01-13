@@ -16,6 +16,11 @@ using list_t        = std::vector<struct variant>;
 
 #define STR(s) L##s
 
+inline bool is_zahlen(real_t value) {
+    const real_t epsilon = 1e-10;
+    return fabs(value - round(value)) < epsilon;
+}
+
 inline real_t to_real(const string_t& str) {
     real_t real{};
     try { real = std::stod(str); } catch (...) {}

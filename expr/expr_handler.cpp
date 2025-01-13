@@ -1,6 +1,10 @@
 #include "expr_handler.h"
-#include "expr_maker.h"
+#include <algorithm>
+#include "expr_link.h"
 #include "expr_operate.h"
+
+#define EXTRA_EXPR_DEFS
+#include "extradefs.h"
 
 namespace expr {
 
@@ -9,139 +13,16 @@ enum class parse_state {
     SEGMENT_CLOSED
 };
 
-inline bool test_link(const node* parent, node::node_side side, const node* child) {
-    if (!parent || node::EXPR != parent->type) {
-        return false;
-    }
-
-    if (!child) {
-        return (operater::UNARY == parent->expr.oper->mode) &&
-               (parent->expr.oper->postpose ? node::RIGHT == side : node::LEFT == side);
-    }
-
-    switch (parent->expr.oper->type) {
-    case operater::LOGIC:
-        return child->is_boolean_result();
-    case operater::EVALUATION:
-        return child->is_list();
-    }
-
-    return child->is_value_result() || child->is_list();
-}
-
-inline bool test_node(const node* nd) {
-    if (!nd) {
-        return true;
-    }
-
-    switch (nd->type) {
-    case node::OBJECT:
-        if (object::LIST == nd->obj->type) {
-            for (node* item : *nd->obj->list) {
-                if (!test_node(item)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    case node::EXPR:
-        return test_link(nd, node::LEFT, nd->expr.left) && test_link(nd, node::RIGHT, nd->expr.right) &&
-               test_node(nd->expr.left) && test_node(nd->expr.right);
-    }
-
-    return false;
-}
-
-inline bool link_node(node* parent, node::node_side side, node* child) {
-    if (!parent || node::EXPR != parent->type) {
-        return false;
-    }
-
-    if ((operater::UNARY == parent->expr.oper->mode) &&
-        (parent->expr.oper->postpose ? node::RIGHT == side : node::LEFT == side)) {
-        return !child;
-    }
-
-    if (!child) {
-        return false;
-    }
-
-    (node::LEFT == side ? parent->expr.left : parent->expr.right) = child;
-    child->parent = parent;
-
-    return true;
-}
-
-inline bool insert_node(node*& root, node*& semi, node*& pending, node*& current) {
-#define CHECK_VALID(cond) \
-    if (!(cond)) {        \
-        return false;     \
-    }
-
-    if (!semi) {
-        if (!current) {
-            root = pending;
-            pending = nullptr;
-            return true;
-        }
-
-        CHECK_VALID(link_node(current, node::LEFT, pending));
-        root = current;
-        semi = current;
-        pending = nullptr;
-        current = nullptr;
-        return true;
-    }
-
-    if (!current) {
-        CHECK_VALID(link_node(semi, node::RIGHT, pending));
-        pending = nullptr;
-        return true;
-    }
-
-    CHECK_VALID(node::EXPR == semi->type && node::EXPR == current->type);
-
-    if (current->expr.oper->priority < semi->expr.oper->priority || operater::UNARY == current->expr.oper->mode) {
-        CHECK_VALID(link_node(current, node::LEFT, pending));
-        pending = nullptr;
-
-        CHECK_VALID(link_node(semi, node::RIGHT, current));
-        semi = current;
-        current = nullptr;
-        return true;
-    } else {
-        CHECK_VALID(link_node(semi, node::RIGHT, pending));
-        pending = nullptr;
-
-        node* ancestor = semi->parent;
-        while (ancestor && ancestor->expr.oper->priority <= current->expr.oper->priority) {
-            ancestor = ancestor->parent;
-        }
-
-        if (ancestor) {
-            CHECK_VALID(link_node(current, node::LEFT, ancestor->expr.right));
-            CHECK_VALID(link_node(ancestor, node::RIGHT, current));
-            semi = current;
-            current = nullptr;
-            return true;
-        } else {
-            CHECK_VALID(link_node(current, node::LEFT, root));
-            root = current;
-            semi = current;
-            current = nullptr;
-            return true;
-        }
-    }
-
-    CHECK_VALID(false);
-
-#undef CHECK_VALID
-}
-
 node* handler::parse(const string_t& expr) {
     handler hdl(expr);
+    node* defines = hdl.parse_defines();
     node* nd = hdl.parse_atom();
-    if (!hdl.finished() || !test_node(nd)) {
+    if (nd) {
+        std::swap(nd->defines, defines);
+    }
+
+    if (!hdl.finished() || !nd || !test_node(nd)) {
+        delete defines;
         delete nd;
         return nullptr;
     }
@@ -155,16 +36,9 @@ bool handler::check(const string_t& expr) {
     return nullptr != nd;
 }
 
-handler::string_list handler::params(const string_t& expr) {
+variant handler::calculate(const string_t& expr, const param_replacer& pr, const variable_replacer& vr) {
     node* nd = parse(expr);
-    string_list list = params(nd);
-    delete nd;
-    return list;
-}
-
-variant handler::calculate(const string_t& expr, const param_replacer& replacer) {
-    node* nd = parse(expr);
-    variant var = calculate(nd, replacer);
+    variant var = calculate(nd, pr, vr);
     delete nd;
     return var;
 }
@@ -176,14 +50,14 @@ string_t handler::text(const node* nd) {
 
     switch (nd->type) {
     case node::OBJECT:
-        switch (nd->obj->type) {
+        switch (nd->obj.type) {
         case object::BOOLEAN:
-            return nd->obj->boolean ? STR("true") : STR("false");
+            return nd->obj.boolean ? STR("true") : STR("false");
         case object::REAL:
-            return to_string(nd->obj->real);
+            return to_string(nd->obj.real);
         case object::COMPLEX: {
-            real_t real = nd->obj->complex->real();
-            real_t imag = nd->obj->complex->imag();
+            real_t real = nd->obj.complex->real();
+            real_t imag = nd->obj.complex->imag();
             if (!imag) {
                 return to_string(real);
             }
@@ -193,12 +67,14 @@ string_t handler::text(const node* nd) {
             return to_string(real) + STR('+') + to_string(imag) + STR('i');
         }
         case object::STRING:
-            return STR('\"') + *nd->obj->string + STR('\"');
+            return STR('\"') + *nd->obj.string + STR('\"');
         case object::PARAM:
-            return STR('[') + *nd->obj->param + STR(']');
+            return STR('[') + *nd->obj.param + STR(']');
+        case object::VARIABLE:
+            return string_t(1, nd->obj.variable);
         case object::LIST: {
             string_t str;
-            for (node* item : *nd->obj->list) {
+            for (node* item : *nd->obj.list) {
                 if (!str.empty()) {
                     str += STR(',');
                 }
@@ -209,15 +85,17 @@ string_t handler::text(const node* nd) {
         }
         break;
     case node::EXPR:
-        switch (nd->expr.oper->type) {
+        switch (nd->expr.oper.type) {
         case operater::LOGIC:
-            return EXTRA_LOGIC_OPERATER.at(nd->expr.oper->logic).at(2);
+            return EXTRA_LOGIC_OPERATER.at(nd->expr.oper.logic).at(2);
         case operater::COMPARE:
-            return EXTRA_COMPARE_OPERATER.at(nd->expr.oper->compare).at(2);
+            return EXTRA_COMPARE_OPERATER.at(nd->expr.oper.compare).at(2);
         case operater::ARITHMETIC:
-            return EXTRA_ARITHMETIC_OPERATER.at(nd->expr.oper->arithmetic).at(2);
-        case operater::EVALUATION:
-            return EXTRA_EVALUATION_OPERATER.at(nd->expr.oper->evaluation).at(2);
+            return EXTRA_ARITHMETIC_OPERATER.at(nd->expr.oper.arithmetic).at(2);
+        case operater::STATISTIC:
+            return EXTRA_STATISTIC_OPERATER.at(nd->expr.oper.statistic).at(2);
+        case operater::FUNCTION:
+            return *nd->expr.oper.function;
         }
         break;
     }
@@ -231,87 +109,97 @@ string_t handler::expr(const node* nd) {
     }
 
     string_t str = text(nd);
-
-    switch (nd->type) {
-    case node::OBJECT:
-        return str;
-    case node::EXPR: {
+    if (nd->is_expr()) {
         string_t left = expr(nd->expr.left);
         string_t right = expr(nd->expr.right);
-        if (nd->expr.left && node::EXPR == nd->expr.left->type &&
-            nd->expr.oper->priority < nd->expr.left->expr.oper->priority) {
+        if (nd->expr.left && nd->higher_than(nd->expr.left)) {
             left = STR('(') + left + STR(')');
         }
-        if (nd->expr.right && node::EXPR == nd->expr.right->type &&
-            nd->expr.oper->priority <= nd->expr.right->expr.oper->priority) {
+        if (nd->expr.right && !nd->lower_than(nd->expr.right)) {
             right = STR('(') + right + STR(')');
         }
-        return left + str + right;
-    }
-    }
-
-    return string_t();
-}
-
-handler::string_list handler::params(const node* nd) {
-    if (!nd) {
-        return string_list();
+        str = left + str + right;
     }
 
-    auto merge = [](const string_list& left, const string_list& right) {
-        string_list list(left);
-        list.insert(list.end(), right.begin(), right.end());
-        return list;
-    };
-
-    switch (nd->type) {
-    case node::OBJECT:
-        switch (nd->obj->type) {
-        case object::PARAM:
-            return string_list({*nd->obj->param});
-        case object::LIST:
-            return std::accumulate(nd->obj->list->begin(), nd->obj->list->end(), string_list(),
-                                   [&merge](const string_list& list, node* nd) { return merge(list, params(nd)); });
+    if (nd->defines) {
+        string_t defines_str = expr(nd->defines);
+        if (!defines_str.empty()) {
+            defines_str.front() = STR('{');
+            defines_str.back() = STR('}');
+            return defines_str + str;
         }
-        break;
-    case node::EXPR:
-        return merge(params(nd->expr.left), params(nd->expr.right));
     }
 
-    return string_list();
+    return str;
 }
 
-variant handler::calculate(const node* nd, const param_replacer& replacer) {
+variant handler::calculate(const node* nd, const param_replacer& pr, const variable_replacer& vr, define_map_ptr dm) {
     if (!nd) {
         return variant();
     }
 
+    if (!dm) {
+        dm = nd->define_map();
+    }
+
     switch (nd->type) {
     case node::OBJECT:
-        switch (nd->obj->type) {
+        switch (nd->obj.type) {
         case object::BOOLEAN:
-            return nd->obj->boolean;
+            return nd->obj.boolean;
         case object::REAL:
-            return nd->obj->real;
+            return nd->obj.real;
         case object::COMPLEX:
-            return *nd->obj->complex;
+            return *nd->obj.complex;
         case object::STRING:
-            return *nd->obj->string;
+            return *nd->obj.string;
         case object::PARAM:
-            if (replacer) {
-                return replacer(*nd->obj->param);
+            if (pr) {
+                return pr(*nd->obj.param);
+            }
+            break;
+        case object::VARIABLE:
+            if (vr) {
+                return vr(nd->obj.variable);
             }
             break;
         case object::LIST: {
-            list_t list(nd->obj->list->size());
-            std::transform(nd->obj->list->begin(), nd->obj->list->end(), list.begin(),
-                           [&replacer](node* nd) { return calculate(nd, replacer); });
+            list_t list(nd->obj.list->size());
+            std::transform(nd->obj.list->begin(), nd->obj.list->end(), list.begin(),
+                           [&pr, &vr, &dm](node* nd) { return calculate(nd, pr, vr, dm); });
             return list;
         }
         }
         break;
     case node::EXPR:
-        return operate(calculate(nd->expr.left, replacer), *nd->expr.oper, calculate(nd->expr.right, replacer));
+        switch (nd->expr.oper.type) {
+        case operater::FUNCTION: {
+            if (!dm) {
+                return variant();
+            }
+
+            auto iter = dm->find(*nd->expr.oper.function);
+            if (dm->end() == iter) {
+                return variant();
+            }
+
+            variant var = calculate(nd->expr.right, pr, vr, dm);
+            if (variant::LIST != var.type) {
+                return variant();
+            }
+
+            const string_t& variables = iter->second.first;
+            const node* rule = iter->second.second;
+            const list_t& values = *var.list;
+            return calculate(rule, pr, [&variables, &values](char_t variable) {
+                size_t pos = variables.find(variable);
+                return string_t::npos != pos && pos < values.size() ? values[pos] : variant();
+            }, dm);
+        }
+        default:
+            return operate(calculate(nd->expr.left, pr, vr, dm), nd->expr.oper, calculate(nd->expr.right, pr, vr, dm));
+        }
+        break;
     }
 
     return variant();
@@ -354,7 +242,7 @@ bool handler::try_match(const string_t& str) {
 
 bool handler::atom_ended() {
     char_t ch = peek_char();
-    return !ch || STR(')') == ch || STR(',') == ch;
+    return !ch || STR(',') == ch || STR(')') == ch || STR('}') == ch;
 }
 
 bool handler::finished() {
@@ -362,15 +250,22 @@ bool handler::finished() {
     return !ch;
 }
 
-node* handler::parse_atom() {
-#define CHECK_VALID(cond) \
-    if (!(cond)) {        \
-        delete root;      \
-        delete pending;   \
-        delete current;   \
-        return nullptr;   \
+node* handler::parse_defines() {
+    if (!try_match(STR("{"))) {
+        return nullptr;
     }
 
+    node* nd = parse_list(false);
+
+    if (!try_match(STR("}")) || !nd || nd->obj.list->empty()) {
+        delete nd;
+        return nullptr;
+    }
+
+    return nd;
+}
+
+node* handler::parse_atom() {
     node* root = nullptr;
     node* semi = nullptr;
     node* pending = nullptr;
@@ -380,335 +275,399 @@ node* handler::parse_atom() {
         switch (state) {
         case parse_state::SEGMENT_OPENING:
             if (try_match(STR("("))) {
-                CHECK_VALID(pending = parse_atom());
-                if (try_match(STR(","))) {
-                    node* list_node = parse_list(true);
-                    CHECK_VALID(list_node);
-                    list_node->obj->list->insert(list_node->obj->list->begin(), pending);
-                    pending = list_node;
-                } else {
-                    CHECK_VALID(try_match(STR(")")));
+                pending = parse_atom();
+                if (!pending) {
+                    goto failed;
                 }
+
+                if (try_match(STR(","))) {
+                    node* list_node = parse_list(false);
+                    if (!list_node) {
+                        goto failed;
+                    }
+
+                    list_node->obj.list->insert(list_node->obj.list->begin(), pending);
+                    pending = list_node;
+                }
+
+                if (!try_match(STR(")"))) {
+                    goto failed;
+                }
+
                 state = parse_state::SEGMENT_CLOSED;
             } else {
                 current = parse_operater(operater::UNARY);
                 if (current) {
-                    CHECK_VALID(!current->expr.oper->postpose);
-                    bool is_evaluation = operater::EVALUATION == current->expr.oper->type;
-                    CHECK_VALID(insert_node(root, semi, pending, current));
-                    if (is_evaluation) {
-                        CHECK_VALID(pending = parse_list(false));
+                    if (current->expr.oper.postpose) {
+                        goto failed;
+                    }
+
+                    bool is_eval = current->is_eval_expr();
+                    if (!insert_node(root, semi, pending, current)) {
+                        goto failed;
+                    }
+
+                    if (is_eval) {
+                        pending = parse_list(true);
+                        if (!pending) {
+                            goto failed;
+                        }
+
                         state = parse_state::SEGMENT_CLOSED;
                     }
                 } else {
-                    CHECK_VALID(pending = parse_object());
+                    pending = parse_object();
+                    if (!pending) {
+                        goto failed;
+                    }
+
                     state = parse_state::SEGMENT_CLOSED;
                 }
             }
             break;
         case parse_state::SEGMENT_CLOSED:
             if (atom_ended()) {
-                CHECK_VALID(insert_node(root, semi, pending, current = nullptr));
+                if (!insert_node(root, semi, pending, current = nullptr)) {
+                    goto failed;
+                }
+
                 return root;
             }
 
             current = parse_operater(operater::BINARY);
             if (current) {
-                CHECK_VALID(insert_node(root, semi, pending, current));
+                if (!insert_node(root, semi, pending, current)) {
+                    goto failed;
+                }
+
                 state = parse_state::SEGMENT_OPENING;
             } else {
                 current = parse_operater(operater::UNARY);
-                CHECK_VALID(current && current->expr.oper->postpose && insert_node(root, semi, pending, current));
+                if (!current || !current->expr.oper.postpose || !insert_node(root, semi, pending, current)) {
+                    goto failed;
+                }
             }
             break;
         default:
-            CHECK_VALID(false);
+            goto failed;
         }
     }
 
-    CHECK_VALID(false);
-
-#undef CHECK_VALID
+failed:
+    delete root;
+    delete pending;
+    delete current;
+    return nullptr;
 }
 
 node* handler::parse_operater(operater::operater_mode mode) {
-    operater* oper = nullptr;
     char_t ch = get_char();
     switch (mode) {
     case operater::UNARY:
         switch (ch) {
         case STR('!'):
-            oper = make_logic(operater::NOT);
-            break;
+            return make_node(make_logic(operater::NOT));
         case STR('-'):
-            oper = make_arithmetic(operater::NEGATIVE);
-            break;
+            return make_node(make_arithmetic(operater::NEGATIVE));
         case STR('A'):
-            oper = make_evaluation(operater::ARRANGEMENT);
-            break;
+            return make_node(make_statistic(operater::ARRANGEMENT));
         case STR('C'):
-            oper = make_evaluation(operater::COMBINATION);
-            break;
+            return make_node(make_statistic(operater::COMBINATION));
         case STR('a'):
             if (try_match(STR("bs"))) {
-                oper = make_arithmetic(operater::ABS);
-            } else if (try_match(STR("cos"))) {
-                oper = make_arithmetic(operater::ARCCOS);
-            } else if (try_match(STR("cot"))) {
-                oper = make_arithmetic(operater::ARCCOT);
-            } else if (try_match(STR("csc"))) {
-                oper = make_arithmetic(operater::ARCCSC);
-            } else if (try_match(STR("mp"))) {
-                oper = make_arithmetic(operater::AMPLITUDE);
-            } else if (try_match(STR("ng"))) {
-                oper = make_arithmetic(operater::ANGLE);
-            } else if (try_match(STR("sec"))) {
-                oper = make_arithmetic(operater::ARCSEC);
-            } else if (try_match(STR("sin"))) {
-                oper = make_arithmetic(operater::ARCSIN);
-            } else if (try_match(STR("tan"))) {
-                oper = make_arithmetic(operater::ARCTAN);
-            } else if (try_match(STR("vg"))) {
-                oper = make_evaluation(operater::AVERAGE);
+                return make_node(make_arithmetic(operater::ABS));
+            }
+            if (try_match(STR("cos"))) {
+                return make_node(make_arithmetic(operater::ARCCOS));
+            }
+            if (try_match(STR("cot"))) {
+                return make_node(make_arithmetic(operater::ARCCOT));
+            }
+            if (try_match(STR("csc"))) {
+                return make_node(make_arithmetic(operater::ARCCSC));
+            }
+            if (try_match(STR("mp"))) {
+                return make_node(make_arithmetic(operater::AMPLITUDE));
+            }
+            if (try_match(STR("ng"))) {
+                return make_node(make_arithmetic(operater::ANGLE));
+            }
+            if (try_match(STR("sec"))) {
+                return make_node(make_arithmetic(operater::ARCSEC));
+            }
+            if (try_match(STR("sin"))) {
+                return make_node(make_arithmetic(operater::ARCSIN));
+            }
+            if (try_match(STR("tan"))) {
+                return make_node(make_arithmetic(operater::ARCTAN));
+            }
+            if (try_match(STR("vg"))) {
+                return make_node(make_statistic(operater::AVERAGE));
             }
             break;
         case STR('c'):
             if (try_match(STR("eil"))) {
-                oper = make_arithmetic(operater::CEIL);
-            } else if (try_match(STR("os"))) {
-                oper = make_arithmetic(operater::COS);
-            } else if (try_match(STR("ot"))) {
-                oper = make_arithmetic(operater::COT);
-            } else if (try_match(STR("sc"))) {
-                oper = make_arithmetic(operater::CSC);
+                return make_node(make_arithmetic(operater::CEIL));
+            }
+            if (try_match(STR("os"))) {
+                return make_node(make_arithmetic(operater::COS));
+            }
+            if (try_match(STR("ot"))) {
+                return make_node(make_arithmetic(operater::COT));
+            }
+            if (try_match(STR("sc"))) {
+                return make_node(make_arithmetic(operater::CSC));
             }
             break;
         case STR('d'):
             if (try_match(STR("ev"))) {
-                oper = make_evaluation(operater::DEVIATION);
+                return make_node(make_statistic(operater::DEVIATION));
             }
             break;
         case STR('e'):
             if (try_match(STR("xp"))) {
-                oper = make_arithmetic(operater::EXP);
+                return make_node(make_arithmetic(operater::EXP));
             }
             break;
         case STR('f'):
             if (try_match(STR("loor"))) {
-                oper = make_arithmetic(operater::FLOOR);
+                return make_node(make_arithmetic(operater::FLOOR));
             }
             break;
         case STR('l'):
-            if (try_match(STR("erp"))) {
-                oper = make_evaluation(operater::LERP);
-            } else if (try_match(STR("g"))) {
-                oper = make_arithmetic(operater::LG);
-            } else if (try_match(STR("n"))) {
-                oper = make_arithmetic(operater::LN);
+            if (try_match(STR("g"))) {
+                return make_node(make_arithmetic(operater::LG));
+            }
+            if (try_match(STR("n"))) {
+                return make_node(make_arithmetic(operater::LN));
             }
             break;
         case STR('m'):
             if (try_match(STR("ax"))) {
-                oper = make_evaluation(operater::MAX);
-            } else if (try_match(STR("ed"))) {
-                oper = make_evaluation(operater::MEDIAN);
-            } else if (try_match(STR("in"))) {
-                oper = make_evaluation(operater::MIN);
-            } else if (try_match(STR("ode"))) {
-                oper = make_evaluation(operater::MODE);
+                return make_node(make_statistic(operater::MAX));
+            }
+            if (try_match(STR("ed"))) {
+                return make_node(make_statistic(operater::MEDIAN));
+            }
+            if (try_match(STR("in"))) {
+                return make_node(make_statistic(operater::MIN));
+            }
+            if (try_match(STR("ode"))) {
+                return make_node(make_statistic(operater::MODE));
             }
             break;
         case STR('r'):
             if (try_match(STR("ange"))) {
-                oper = make_evaluation(operater::RANGE);
-            } else if (try_match(STR("int"))) {
-                oper = make_arithmetic(operater::RINT);
-            } else if (try_match(STR("ound"))) {
-                oper = make_arithmetic(operater::ROUND);
-            } else if (try_match(STR("t"))) {
-                oper = make_arithmetic(operater::SQRT);
+                return make_node(make_statistic(operater::RANGE));
+            }
+            if (try_match(STR("int"))) {
+                return make_node(make_arithmetic(operater::RINT));
+            }
+            if (try_match(STR("ound"))) {
+                return make_node(make_arithmetic(operater::ROUND));
+            }
+            if (try_match(STR("t"))) {
+                return make_node(make_arithmetic(operater::SQRT));
             }
             break;
         case STR('s'):
             if (try_match(STR("ec"))) {
-                oper = make_arithmetic(operater::SEC);
-            } else if (try_match(STR("in"))) {
-                oper = make_arithmetic(operater::SIN);
-            } else if (try_match(STR("um"))) {
-                oper = make_evaluation(operater::SUM);
+                return make_node(make_arithmetic(operater::SEC));
+            }
+            if (try_match(STR("in"))) {
+                return make_node(make_arithmetic(operater::SIN));
+            }
+            if (try_match(STR("um"))) {
+                return make_node(make_statistic(operater::SUM));
             }
             break;
         case STR('t'):
             if (try_match(STR("an"))) {
-                oper = make_arithmetic(operater::TAN);
-            } else if (try_match(STR("odeg"))) {
-                oper = make_arithmetic(operater::TODEG);
-            } else if (try_match(STR("orad"))) {
-                oper = make_arithmetic(operater::TORAD);
-            } else if (try_match(STR("runc"))) {
-                oper = make_arithmetic(operater::TRUNC);
+                return make_node(make_arithmetic(operater::TAN));
+            }
+            if (try_match(STR("odeg"))) {
+                return make_node(make_arithmetic(operater::TODEG));
+            }
+            if (try_match(STR("orad"))) {
+                return make_node(make_arithmetic(operater::TORAD));
+            }
+            if (try_match(STR("runc"))) {
+                return make_node(make_arithmetic(operater::TRUNC));
             }
             break;
         case STR('v'):
             if (try_match(STR("ar"))) {
-                oper = make_evaluation(operater::VARIANCE);
+                return make_node(make_statistic(operater::VARIANCE));
             }
             break;
         case STR('~'):
             if (try_match(STR("!"))) {
-                oper = make_arithmetic(operater::FACTORIAL);
+                return make_node(make_arithmetic(operater::FACTORIAL));
             }
             break;
         case STR('°'):
-            oper = make_arithmetic(operater::DEG);
-            break;
+            return make_node(make_arithmetic(operater::DEG));
         case STR('√'):
-            oper = make_arithmetic(operater::SQRT);
-            break;
+            return make_node(make_arithmetic(operater::SQRT));
         }
         break;
     case operater::BINARY:
         switch (ch) {
         case STR('!'):
             if (try_match(STR("="))) {
-                oper = make_compare(operater::NOT_EQUAL);
+                return make_node(make_compare(operater::NOT_EQUAL));
             }
             break;
         case STR('#'):
         case STR('±'):
-            oper = make_arithmetic(try_match(STR("%")) ? operater::EXPAND_PERCENT : operater::EXPAND);
-            break;
+            return make_node(make_arithmetic(try_match(STR("%")) ? operater::EXPAND_PERCENT : operater::EXPAND));
         case STR('%'):
-            oper = make_arithmetic(operater::MOD);
-            break;
+            return make_node(make_arithmetic(operater::MOD));
         case STR('&'):
             try_match(STR("&"));
-            oper = make_logic(operater::AND);
-            break;
+            return make_node(make_logic(operater::AND));
         case STR('*'):
-            oper = make_arithmetic(operater::MULTIPLY);
-            break;
+            return make_node(make_arithmetic(operater::MULTIPLY));
         case STR('+'):
-            oper = make_arithmetic(operater::PLUS);
-            break;
+            return make_node(make_arithmetic(operater::PLUS));
         case STR('-'):
-            oper = make_arithmetic(operater::MINUS);
-            break;
+            return make_node(make_arithmetic(operater::MINUS));
         case STR('/'):
-            oper = make_arithmetic(operater::DIVIDE);
-            break;
+            return make_node(make_arithmetic(operater::DIVIDE));
         case STR('<'):
-            oper = make_compare(try_match(STR("=")) ? operater::LESS_EQUAL : operater::LESS);
-            break;
+            return make_node(make_compare(try_match(STR("=")) ? operater::LESS_EQUAL : operater::LESS));
         case STR('='):
             try_match(STR("="));
-            oper = make_compare(operater::EQUAL);
-            break;
+            return make_node(make_compare(operater::EQUAL));
         case STR('>'):
-            oper = make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER);
-            break;
+            return make_node(make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER));
         case STR('?'):
             if (try_match(STR("="))) {
-                oper = make_compare(operater::REGULAR_MATCH);
+                return make_node(make_compare(operater::REGULAR_MATCH));
             }
             break;
         case STR('^'):
-            oper = make_arithmetic(operater::POW);
-            break;
+            return make_node(make_arithmetic(operater::POW));
         case STR('h'):
             if (try_match(STR("p"))) {
-                oper = make_arithmetic(operater::HYPOT);
+                return make_node(make_arithmetic(operater::HYPOT));
             }
             break;
         case STR('l'):
             if (try_match(STR("og"))) {
-                oper = make_arithmetic(operater::LOG);
+                return make_node(make_arithmetic(operater::LOG));
             }
             break;
         case STR('r'):
             if (try_match(STR("t"))) {
-                oper = make_arithmetic(operater::ROOT);
+                return make_node(make_arithmetic(operater::ROOT));
             }
             break;
         case STR('v'):
             if (try_match(STR("ec"))) {
-                oper = make_arithmetic(operater::VECTOR);
+                return make_node(make_arithmetic(operater::VECTOR));
             }
             break;
         case STR('|'):
             try_match(STR("|"));
-            oper = make_logic(operater::OR);
-            break;
+            return make_node(make_logic(operater::OR));
         case STR('~'):
             if (try_match(STR("="))) {
-                oper = make_compare(operater::APPROACH);
+                return make_node(make_compare(operater::APPROACH));
             }
             break;
         case STR('√'):
-            oper = make_arithmetic(operater::ROOT);
-            break;
+            return make_node(make_arithmetic(operater::ROOT));
         case STR('∠'):
-            oper = make_arithmetic(operater::VECTOR);
-            break;
+            return make_node(make_arithmetic(operater::VECTOR));
         case STR('⊿'):
-            oper = make_arithmetic(operater::HYPOT);
-            break;
+            return make_node(make_arithmetic(operater::HYPOT));
         }
         break;
     }
 
-    if (!oper && ch) {
+    if (ch) {
         --m_pos;
     }
 
-    return oper ? make_node(oper) : nullptr;
+    return operater::UNARY == mode ? parse_function() : nullptr;
+}
+
+node* handler::parse_function() {
+    int pos = m_pos;
+    peek_char();
+
+    string_t str;
+    char_t ch;
+    while (ch = get_char(false)) {
+        if (STR('A') <= ch && ch <= STR('Z') || STR('a') <= ch && ch <= STR('z')) {
+            str += ch;
+        } else {
+            break;
+        }
+    }
+
+    if (ch) {
+        --m_pos;
+    }
+
+    if (str.empty() || STR('(') != peek_char()) {
+        m_pos = pos;
+        return nullptr;
+    }
+
+    return make_node(make_function(str));
 }
 
 node* handler::parse_object() {
-    node* nd = parse_constant();
-    if (nd) {
+    if (node* nd = parse_constant()) {
+        return nd;
+    }
+    if (node* nd = parse_numeric()) {
+        return nd;
+    }
+    if (node* nd = parse_string()) {
+        return nd;
+    }
+    if (node* nd = parse_param()) {
         return nd;
     }
 
-    nd = parse_numeric();
-    if (nd) {
-        return nd;
-    }
-
-    nd = parse_string();
-    if (nd) {
-        return nd;
-    }
-
-    return parse_param();
+    return parse_variable();
 }
 
 node* handler::parse_constant() {
-    object* obj = nullptr;
     if (try_match(STR("false"))) {
-        obj = make_boolean(false);
-    } else if (try_match(STR("true"))) {
-        obj = make_boolean(true);
-    } else if (try_match(STR("π")) || try_match(STR("pi"))) {
-        obj = make_real(CONST_PI);
-    } else if (try_match(STR("e"))) {
-        obj = make_real(CONST_E);
-    } else if (try_match(STR("rand"))) {
+        return make_node(make_boolean(false));
+    }
+    if (try_match(STR("true"))) {
+        return make_node(make_boolean(true));
+    }
+    if (try_match(STR("π")) || try_match(STR("pi"))) {
+        return make_node(make_real(CONST_PI));
+    }
+    if (try_match(STR("e"))) {
+        return make_node(make_real(CONST_E));
+    }
+    if (try_match(STR("rand"))) {
         static unsigned s = 0;
         if (!s) {
             s = (unsigned)time(nullptr);
             srand(s);
         }
-        obj = make_real(rand());
+        return make_node(make_real(rand()));
     }
 
-    return obj ? make_node(obj) : nullptr;
+    return nullptr;
 }
 
 node* handler::parse_numeric() {
+    int pos = m_pos;
+    peek_char();
+
     string_t str;
     char_t ch;
-    while (ch = get_char()) {
+    while (ch = get_char(false)) {
         if (STR('0') <= ch && ch <= STR('9') || STR('.') == ch || STR('i') == ch) {
             str += ch;
         } else {
@@ -720,15 +679,8 @@ node* handler::parse_numeric() {
         --m_pos;
     }
 
-    if (str.empty()) {
-        return nullptr;
-    }
-
-    switch (std::count(str.begin(), str.end(), STR('.'))) {
-    case 0:
-    case 1:
-        break;
-    default:
+    if (str.empty() || 1 < std::count(str.begin(), str.end(), STR('.'))) {
+        m_pos = pos;
         return nullptr;
     }
 
@@ -739,18 +691,19 @@ node* handler::parse_numeric() {
         break;
     case 1:
         if (STR('i') != str.back()) {
+            m_pos = pos;
             return nullptr;
         }
         is_imag = true;
         str.pop_back();
         break;
     default:
+        m_pos = pos;
         return nullptr;
     }
 
     real_t real = to_real(str);
-    object* obj = is_imag ? make_complex(0, real) : make_real(real);
-    return obj ? make_node(obj) : nullptr;
+    return make_node(is_imag ? make_complex(0, real) : make_real(real));
 }
 
 node* handler::parse_string() {
@@ -773,8 +726,7 @@ node* handler::parse_string() {
         return nullptr;
     }
 
-    object* obj = make_string(str);
-    return obj ? make_node(obj) : nullptr;
+    return make_node(make_string(str));
 }
 
 node* handler::parse_param() {
@@ -797,34 +749,42 @@ node* handler::parse_param() {
         return nullptr;
     }
 
-    object* obj = make_param(str);
-    return obj ? make_node(obj) : nullptr;
+    return make_node(make_param(str));
 }
 
-node* handler::parse_list(bool opened) {
-    if (!opened && !try_match(STR("("))) {
+node* handler::parse_variable() {
+    char_t ch = get_char();
+    if (STR('A') <= ch && ch <= STR('Z') || STR('a') <= ch && ch <= STR('z')) {
+        return make_node(make_variable(ch));
+    }
+
+    if (ch) {
+        --m_pos;
+    }
+
+    return nullptr;
+}
+
+node* handler::parse_list(bool closure) {
+    if (closure && !try_match(STR("("))) {
         return nullptr;
     }
 
     node_list list;
-    bool ok = false;
+    node* item = nullptr;
     do {
-        node* nd = parse_atom();
-        ok = nd && nd->is_value_result();
-        if (ok) {
-            list.push_back(nd);
-        }
-    } while (ok && try_match(STR(",")));
+        item = parse_atom();
+        list.push_back(item);
+    } while (item && try_match(STR(",")));
 
-    if (!ok || !try_match(STR(")"))) {
-        for (node* nd : list) {
-            delete nd;
+    if ((closure && !try_match(STR(")"))) || !item) {
+        for (node* item : list) {
+            delete item;
         }
         return nullptr;
     }
 
-    object* obj = make_list(list);
-    return obj ? make_node(obj) : nullptr;
+    return make_node(make_list(list));
 }
 
 }

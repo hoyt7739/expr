@@ -9,7 +9,8 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        std::wcout << expr::handler::calculate(expr).to_string() << std::endl;
+        std::wcout << "valid: " << expr::handler::check(expr) << std::endl;
+        std::wcout << "result: " << expr::handler::calculate(expr).to_string() << std::endl;
     }
 
     return 0;
