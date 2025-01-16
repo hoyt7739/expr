@@ -49,7 +49,7 @@ private:
 
 private:
     string_t m_expr;
-    int m_pos = 0;
+    size_t m_pos = 0;
 };
 
 }

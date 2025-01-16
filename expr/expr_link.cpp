@@ -272,13 +272,8 @@ bool test_link(const node* parent, node::node_side side, const node* child, defi
         return child->is_boolean_result();
     case operater::COMPARE:
     case operater::ARITHMETIC:
-        return child->is_value_result() || child->is_list();
+        return child->is_value_result();
     case operater::STATISTIC:
-        switch (parent->expr.oper.statistic) {
-        case operater::ARRANGEMENT:
-        case operater::COMBINATION:
-            return child->is_list() && 2 == child->obj.list->size();
-        }
         return child->is_list();
     case operater::FUNCTION:
         if (dm) {

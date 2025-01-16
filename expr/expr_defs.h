@@ -7,9 +7,6 @@
 
 namespace expr {
 
-const real_t CONST_PI   = 3.1415926535897932384626433832795;
-const real_t CONST_E    = 2.7182818284590452353602874713527;
-
 using node_list = std::vector<struct node*>;
 using define_map_ptr = std::shared_ptr<std::map<string_t, std::pair<string_t, struct node*>>>;
 
@@ -29,81 +26,75 @@ struct operater {
 
     // extradefs(expr::operater::logic_operater) // mode // priority // text // postpose
     enum logic_operater {
-        AND,                // 2 // 9  // &&
-        OR,                 // 2 // 10 // ||
-        NOT                 // 1 // 1  // !
+        AND,                // 2 // 8 // &&
+        OR,                 // 2 // 9 // ||
+        NOT                 // 1 // 1 // !
     };
 
     // extradefs(expr::operater::compare_operater)
     enum compare_operater {
-        LESS,               // 2 // 8  // <
-        LESS_EQUAL,         // 2 // 8  // <=
-        EQUAL,              // 2 // 8  // =
-        APPROACH,           // 2 // 8  // ~=
-        REGULAR_MATCH,      // 2 // 8  // ?=
-        NOT_EQUAL,          // 2 // 8  // !=
-        GREATER_EQUAL,      // 2 // 8  // >=
-        GREATER             // 2 // 8  // >
+        LESS,               // 2 // 7 // <
+        LESS_EQUAL,         // 2 // 7 // <=
+        EQUAL,              // 2 // 7 // =
+        APPROACH,           // 2 // 7 // ~=
+        NOT_EQUAL,          // 2 // 7 // !=
+        GREATER_EQUAL,      // 2 // 7 // >=
+        GREATER             // 2 // 7 // >
     };
 
     // extradefs(expr::operater::arithmetic_operater)
     enum arithmetic_operater {
-        PLUS,               // 2 // 5  // +
-        MINUS,              // 2 // 5  // -
-        MULTIPLY,           // 2 // 4  // *
-        DIVIDE,             // 2 // 4  // /
-        MOD,                // 2 // 4  // %
-        NEGATIVE,           // 1 // 3  // -
-        ABS,                // 1 // 1  // abs
-        CEIL,               // 1 // 1  // ceil
-        FLOOR,              // 1 // 1  // floor
-        TRUNC,              // 1 // 1  // trunc
-        ROUND,              // 1 // 1  // round
-        RINT,               // 1 // 1  // rint
-        FACTORIAL,          // 1 // 1  // ~!    // 1
-        POW,                // 2 // 2  // ^
-        EXP,                // 1 // 1  // exp
-        LOG,                // 2 // 2  // log
-        LG,                 // 1 // 1  // lg
-        LN,                 // 1 // 1  // ln
-        SQRT,               // 1 // 1  // √
-        ROOT,               // 2 // 2  // √
-        HYPOT,              // 2 // 6  // ⊿
-        DEG,                // 1 // 1  // °     // 1
-        TODEG,              // 1 // 1  // todeg
-        TORAD,              // 1 // 1  // torad
-        SIN,                // 1 // 1  // sin
-        ARCSIN,             // 1 // 1  // asin
-        COS,                // 1 // 1  // cos
-        ARCCOS,             // 1 // 1  // acos
-        TAN,                // 1 // 1  // tan
-        ARCTAN,             // 1 // 1  // atan
-        COT,                // 1 // 1  // cot
-        ARCCOT,             // 1 // 1  // acot
-        SEC,                // 1 // 1  // sec
-        ARCSEC,             // 1 // 1  // asec
-        CSC,                // 1 // 1  // csc
-        ARCCSC,             // 1 // 1  // acsc
-        VECTOR,             // 2 // 6  // ∠
-        AMPLITUDE,          // 1 // 1  // amp
-        ANGLE,              // 1 // 1  // ang
-        EXPAND,             // 2 // 7  // ±
-        EXPAND_PERCENT      // 2 // 7  // ±%
+        PLUS,               // 2 // 5 // +
+        MINUS,              // 2 // 5 // -
+        MULTIPLY,           // 2 // 4 // *
+        DIVIDE,             // 2 // 4 // /
+        MOD,                // 2 // 4 // %
+        NEGATIVE,           // 1 // 3 // -
+        ABS,                // 1 // 1 // abs
+        CEIL,               // 1 // 1 // ceil
+        FLOOR,              // 1 // 1 // floor
+        TRUNC,              // 1 // 1 // trunc
+        ROUND,              // 1 // 1 // round
+        RINT,               // 1 // 1 // rint
+        FACTORIAL,          // 1 // 1 // ~!    // 1
+        POW,                // 2 // 2 // ^
+        EXP,                // 1 // 1 // exp
+        LOG,                // 2 // 2 // log
+        LG,                 // 1 // 1 // lg
+        LN,                 // 1 // 1 // ln
+        SQRT,               // 1 // 1 // √
+        ROOT,               // 2 // 2 // √
+        DEG,                // 1 // 1 // °     // 1
+        TODEG,              // 1 // 1 // todeg
+        TORAD,              // 1 // 1 // torad
+        SIN,                // 1 // 1 // sin
+        ARCSIN,             // 1 // 1 // asin
+        COS,                // 1 // 1 // cos
+        ARCCOS,             // 1 // 1 // acos
+        TAN,                // 1 // 1 // tan
+        ARCTAN,             // 1 // 1 // atan
+        COT,                // 1 // 1 // cot
+        ARCCOT,             // 1 // 1 // acot
+        SEC,                // 1 // 1 // sec
+        ARCSEC,             // 1 // 1 // asec
+        CSC,                // 1 // 1 // csc
+        ARCCSC,             // 1 // 1 // acsc
+        VECTOR,             // 2 // 6 // ∠
+        AMPLITUDE,          // 1 // 1 // amp
+        ANGLE,              // 1 // 1 // ang
     };
 
     // extradefs(expr::operater::statistic_operater)
     enum statistic_operater {
-        SUM,                // 1 // 1  // sum
-        AVERAGE,            // 1 // 1  // avg
-        VARIANCE,           // 1 // 1  // var
-        DEVIATION,          // 1 // 1  // dev
-        MEDIAN,             // 1 // 1  // med
-        MODE,               // 1 // 1  // mode
-        MAX,                // 1 // 1  // max
-        MIN,                // 1 // 1  // min
-        RANGE,              // 1 // 1  // range
-        ARRANGEMENT,        // 1 // 1  // A
-        COMBINATION         // 1 // 1  // C
+        SUM,                // 1 // 1 // sum
+        AVERAGE,            // 1 // 1 // avg
+        VARIANCE,           // 1 // 1 // var
+        DEVIATION,          // 1 // 1 // dev
+        MEDIAN,             // 1 // 1 // med
+        MODE,               // 1 // 1 // mode
+        MAX,                // 1 // 1 // max
+        MIN,                // 1 // 1 // min
+        RANGE               // 1 // 1 // range
     };
 
     operater_type           type;

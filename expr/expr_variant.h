@@ -16,9 +16,12 @@ using list_t        = std::vector<struct variant>;
 
 #define STR(s) L##s
 
+const real_t CONST_PI   = 3.1415926535897932384626433832795;
+const real_t CONST_E    = 2.7182818284590452353602874713527;
+const real_t EPSILON    = 1.0e-9;
+
 inline bool is_zahlen(real_t value) {
-    const real_t epsilon = 1e-10;
-    return fabs(value - round(value)) < epsilon;
+    return fabs(value - round(value)) < EPSILON;
 }
 
 inline real_t to_real(const string_t& str) {

@@ -183,14 +183,14 @@ variant handler::calculate(const node* nd, const param_replacer& pr, const varia
                 return variant();
             }
 
-            variant var = calculate(nd->expr.right, pr, vr, dm);
-            if (variant::LIST != var.type) {
+            variant right = calculate(nd->expr.right, pr, vr, dm);
+            if (variant::LIST != right.type) {
                 return variant();
             }
 
             const string_t& variables = iter->second.first;
             const node* rule = iter->second.second;
-            const list_t& values = *var.list;
+            const list_t& values = *right.list;
             return calculate(rule, pr, [&variables, &values](char_t variable) {
                 size_t pos = variables.find(variable);
                 return string_t::npos != pos && pos < values.size() ? values[pos] : variant();
@@ -229,7 +229,7 @@ char_t handler::peek_char() {
 }
 
 bool handler::try_match(const string_t& str) {
-    int pos = m_pos;
+    size_t pos = m_pos;
     for (char_t ch : str) {
         if (get_char() != ch) {
             m_pos = pos;
@@ -369,10 +369,6 @@ node* handler::parse_operater(operater::operater_mode mode) {
             return make_node(make_logic(operater::NOT));
         case STR('-'):
             return make_node(make_arithmetic(operater::NEGATIVE));
-        case STR('A'):
-            return make_node(make_statistic(operater::ARRANGEMENT));
-        case STR('C'):
-            return make_node(make_statistic(operater::COMBINATION));
         case STR('a'):
             if (try_match(STR("bs"))) {
                 return make_node(make_arithmetic(operater::ABS));
@@ -518,9 +514,6 @@ node* handler::parse_operater(operater::operater_mode mode) {
                 return make_node(make_compare(operater::NOT_EQUAL));
             }
             break;
-        case STR('#'):
-        case STR('±'):
-            return make_node(make_arithmetic(try_match(STR("%")) ? operater::EXPAND_PERCENT : operater::EXPAND));
         case STR('%'):
             return make_node(make_arithmetic(operater::MOD));
         case STR('&'):
@@ -541,18 +534,8 @@ node* handler::parse_operater(operater::operater_mode mode) {
             return make_node(make_compare(operater::EQUAL));
         case STR('>'):
             return make_node(make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER));
-        case STR('?'):
-            if (try_match(STR("="))) {
-                return make_node(make_compare(operater::REGULAR_MATCH));
-            }
-            break;
         case STR('^'):
             return make_node(make_arithmetic(operater::POW));
-        case STR('h'):
-            if (try_match(STR("p"))) {
-                return make_node(make_arithmetic(operater::HYPOT));
-            }
-            break;
         case STR('l'):
             if (try_match(STR("og"))) {
                 return make_node(make_arithmetic(operater::LOG));
@@ -580,8 +563,6 @@ node* handler::parse_operater(operater::operater_mode mode) {
             return make_node(make_arithmetic(operater::ROOT));
         case STR('∠'):
             return make_node(make_arithmetic(operater::VECTOR));
-        case STR('⊿'):
-            return make_node(make_arithmetic(operater::HYPOT));
         }
         break;
     }
@@ -594,7 +575,7 @@ node* handler::parse_operater(operater::operater_mode mode) {
 }
 
 node* handler::parse_function() {
-    int pos = m_pos;
+    size_t pos = m_pos;
     peek_char();
 
     string_t str;
@@ -662,7 +643,7 @@ node* handler::parse_constant() {
 }
 
 node* handler::parse_numeric() {
-    int pos = m_pos;
+    size_t pos = m_pos;
     peek_char();
 
     string_t str;

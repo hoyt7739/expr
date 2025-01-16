@@ -28,8 +28,6 @@ variant operate(const variant& left, const operater& oper, const variant& right)
                 return operate(left.real, oper, right.real);
             case variant::COMPLEX:
                 return operate(*left.complex, oper, right.to_complex());
-            case variant::LIST:
-                return operate(*left.list, oper, right.real);
             default:
                 if (operater::UNARY == oper.mode && !oper.postpose) {
                     return operate(real_t(), oper, right.real);
@@ -54,12 +52,6 @@ variant operate(const variant& left, const operater& oper, const variant& right)
             switch (left.type) {
             case variant::STRING:
                 return operate(*left.string, oper, *right.string);
-            }
-            break;
-        case variant::LIST:
-            switch (left.type) {
-            case variant::REAL:
-                return operate(left.real, oper, *right.list);
             }
             break;
         default:
@@ -110,6 +102,8 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return left <= right;
         case operater::EQUAL:
             return left == right;
+        case operater::APPROACH:
+            return fabs(left - right) < EPSILON;
         case operater::NOT_EQUAL:
             return left != right;
         case operater::GREATER_EQUAL:
@@ -172,8 +166,6 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return right < 0 ? variant() : sqrt(right);
         case operater::ROOT:
             return left <= 0 ? variant() : pow(right, 1 / left);
-        case operater::HYPOT:
-            return hypot(left, right);
         case operater::DEG:
             return left * CONST_PI / 180;
         case operater::TODEG:
@@ -206,62 +198,8 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return -1 < right && right < 1 ? variant() : asin(1 / right);
         case operater::VECTOR:
             return std::polar(left, right);
-        case operater::EXPAND:
-            return list_t({left - right, left + right});
-        case operater::EXPAND_PERCENT:
-            return list_t({left - left * (right / 100), left + left * (right / 100)});
         }
         break;
-    }
-
-    return variant();
-}
-
-variant operate(real_t left, const operater& oper, const list_t& right) {
-    std::vector<real_t> values(right.size());
-    std::transform(right.begin(), right.end(), values.begin(), [](const variant& var) { return var.to_real(); });
-    switch (oper.type) {
-    case operater::COMPARE:
-        if (operater::APPROACH == oper.compare) {
-            auto min_iter = std::min_element(values.begin(), values.end());
-            if (values.end() == min_iter) {
-                return variant();
-            }
-
-            auto max_iter = std::max_element(values.begin(), values.end());
-            if (values.end() == max_iter) {
-                return variant();
-            }
-
-            return *min_iter <= left && left <= *max_iter;
-        }
-        return std::accumulate(values.begin(), values.end(), true, [&left, &oper](bool acc, real_t val) {
-            return acc && operate(left, oper, val).to_boolean();
-        });
-    case operater::ARITHMETIC:
-        return std::accumulate(values.begin(), values.end(), real_t(), [&left, &oper](real_t acc, real_t val) {
-            return acc + operate(left, oper, val).to_real();
-        });
-    }
-
-    return variant();
-}
-
-variant operate(const list_t& left, const operater& oper, real_t right) {
-    std::vector<real_t> values(left.size());
-    std::transform(left.begin(), left.end(), values.begin(), [](const variant& var) { return var.to_real(); });
-    switch (oper.type) {
-    case operater::COMPARE:
-        if (operater::APPROACH == oper.compare) {
-            return operate(right, oper, left);
-        }
-        return std::accumulate(values.begin(), values.end(), true, [&oper, &right](bool acc, real_t val) {
-            return acc && operate(val, oper, right).to_boolean();
-        });
-    case operater::ARITHMETIC:
-        return std::accumulate(values.begin(), values.end(), real_t(), [&oper, &right](real_t acc, real_t val) {
-            return acc + operate(val, oper, right).to_real();
-        });
     }
 
     return variant();
@@ -293,16 +231,20 @@ variant operate(const string_t& left, const operater& oper, const string_t& righ
     switch (oper.type) {
     case operater::COMPARE:
         switch (oper.compare) {
+        case operater::LESS:
+            return left < right;
+        case operater::LESS_EQUAL:
+            return left <= right;
         case operater::EQUAL:
             return left == right;
         case operater::APPROACH:
-            return (left.empty() && right.empty()) ||
-                   (!left.empty() && !right.empty() &&
-                    (string_t::npos != left.find(right) || string_t::npos != right.find(left)));
-        case operater::REGULAR_MATCH:
             return std::regex_search(left, std::basic_regex<char_t>(right));
         case operater::NOT_EQUAL:
             return left != right;
+        case operater::GREATER_EQUAL:
+            return left >= right;
+        case operater::GREATER:
+            return left > right;
         }
         break;
     case operater::ARITHMETIC:
@@ -364,29 +306,6 @@ variant operate(const operater& oper, const list_t& right) {
             return *std::min_element(values.begin(), values.end());
         case operater::RANGE:
             return *std::max_element(values.begin(), values.end()) - *std::min_element(values.begin(), values.end());
-        case operater::ARRANGEMENT:
-        case operater::COMBINATION: {
-            if (size < 2) {
-                return variant();
-            }
-
-            real_t n = floor(values[0]);
-            real_t m = floor(values[1]);
-            if (n < 0 || m < 0) {
-                return variant();
-            }
-
-            if (n < m) {
-                std::swap(n, m);
-            }
-
-            real_t res = factorial(n) / factorial(n - m);
-            if (operater::ARRANGEMENT == oper.statistic) {
-                return res;
-            }
-
-            return res / factorial(m);
-        }
         }
     }
 

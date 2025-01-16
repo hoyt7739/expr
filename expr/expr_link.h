@@ -25,6 +25,7 @@ bool insert_node(node*& root, node*& semi, node*& pending, node*& current);
 bool detach_node(node* nd);
 bool test_link(const node* parent, node::node_side side, const node* child, define_map_ptr dm = nullptr);
 bool test_node(const node* nd, define_map_ptr dm = nullptr);
+
 }
 
 #endif
