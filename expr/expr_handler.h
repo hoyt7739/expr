@@ -20,6 +20,7 @@ public:
 
     static string_t text(const node* nd);
     static string_t expr(const node* nd);
+    static string_t tree(const node* nd, size_t indent = 0);
     static variant calculate(const node* nd,
                              const param_replacer& pr = nullptr,
                              const variable_replacer& vr = nullptr,

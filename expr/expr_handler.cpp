@@ -133,6 +133,49 @@ string_t handler::expr(const node* nd) {
     return str;
 }
 
+string_t handler::tree(const node* nd, size_t indent) {
+    if (!nd) {
+        return string_t();
+    }
+
+    string_t str;
+    if (nd->is_list()) {
+        for (node* item : *nd->obj.list) {
+            str += tree(item, indent);
+        }
+
+        return str;
+    }
+
+    str = string_t(3, STR('─')) + STR(' ') + text(nd);
+    if (nd->upper()) {
+        node::node_side side = nd->side();
+        str[0] = node::LEFT == side ? STR('┌') : (node::TAIL == nd->pos() ? STR('└') : STR('├'));
+        for (const node* ancestor = nd->upper(); ancestor; ancestor = ancestor->upper()) {
+            if (ancestor->is_expr()) {
+                str = string_t(4, STR(' ')) + str;
+                node::node_side this_side = ancestor->side();
+                if (ancestor->upper() && (node::TAIL != ancestor->pos() || this_side != side)) {
+                    str[0] = STR('│');
+                }
+                side = this_side;
+            }
+        }
+    }
+
+    str = STR('\n') + string_t(indent, STR(' ')) + str;
+    if (nd->is_expr()) {
+        if (nd->expr.left) {
+            str = tree(nd->expr.left, indent) + str;
+        }
+        if (nd->expr.right) {
+            str += tree(nd->expr.right, indent);
+        }
+    }
+
+    return str;
+}
+
 variant handler::calculate(const node* nd, const param_replacer& pr, const variable_replacer& vr, define_map_ptr dm) {
     if (!nd) {
         return variant();
@@ -287,6 +330,7 @@ node* handler::parse_atom() {
                     }
 
                     list_node->obj.list->insert(list_node->obj.list->begin(), pending);
+                    pending->super = list_node;
                     pending = list_node;
                 }
 

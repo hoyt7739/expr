@@ -5,6 +5,8 @@
 #include <complex>
 #include <string>
 #include <vector>
+#include <locale>
+#include <codecvt>
 
 namespace expr {
 
@@ -42,6 +44,14 @@ inline string_t to_string(real_t real) {
     }
 
     return str;
+}
+
+inline std::string to_utf8(const string_t& str) {
+    return std::wstring_convert<std::codecvt_utf8_utf16<char_t>>().to_bytes(str);
+}
+
+inline string_t from_utf8(const std::string& str) {
+    return std::wstring_convert<std::codecvt_utf8_utf16<char_t>>().from_bytes(str);
 }
 
 struct variant {

@@ -139,6 +139,12 @@ struct node {
         EXPR
     };
 
+    enum node_pos {
+        HEAD,
+        MIDDLE,
+        TAIL
+    };
+
     enum node_side {
         LEFT,
         RIGHT
@@ -283,6 +289,30 @@ struct node {
         return is_numeric() || is_string() || is_param() || is_variable() || is_value_expr();
     }
 
+    node* upper() const {
+        return super ? super : parent;
+    }
+
+    node_pos pos() const {
+        if (super && !super->obj.list->empty()) {
+            if (super->obj.list->back() == this) {
+                return TAIL;
+            }
+
+            if (super->obj.list->front() == this) {
+                return HEAD;
+            }
+
+            return MIDDLE;
+        }
+
+        return TAIL;
+    }
+
+    node_side side() const {
+        return parent && parent->expr.left == this ? LEFT : RIGHT;
+    }
+
     bool higher_than(const node* other) const {
         return other &&
                ((is_object() && other->is_expr()) ||
@@ -297,7 +327,7 @@ struct node {
 
     define_map_ptr define_map() const {
         node* def = nullptr;
-        for (const node* nd = this; nd; nd = (nd->parent ? nd->parent : nd->super)) {
+        for (const node* nd = this; nd; nd = nd->upper()) {
             if (nd->defines && nd->defines->is_list()) {
                 def = nd->defines;
                 break;
