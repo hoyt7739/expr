@@ -45,6 +45,16 @@ operater make_statistic(operater::statistic_operater statistic) {
     return oper;
 }
 
+operater make_invocation(operater::invocation_operater invocation) {
+    operater oper;
+    oper.type = operater::INVOCATION;
+    oper.mode = static_cast<operater::operater_mode>(EXTRA_INVOCATION_OPERATER.number(invocation, 0));
+    oper.postpose = false;
+    oper.priority = EXTRA_INVOCATION_OPERATER.number(invocation, 1);
+    oper.invocation = invocation;
+    return oper;
+}
+
 operater make_function(const string_t& function) {
     operater oper;
     oper.type = operater::FUNCTION;
@@ -269,18 +279,15 @@ bool test_link(const node* parent, node::node_side side, const node* child, defi
 
     switch (parent->expr.oper.type) {
     case operater::LOGIC:
-        return child->is_boolean_result();
+        return child->is_boolean_result() || child->is_function();
     case operater::COMPARE:
     case operater::ARITHMETIC:
         return child->is_value_result();
     case operater::STATISTIC:
+    case operater::INVOCATION:
         return child->is_list();
     case operater::FUNCTION:
-        if (dm) {
-            auto iter = dm->find(*parent->expr.oper.function);
-            return dm->end() != iter && child->is_list() && iter->second.first.size() == child->obj.list->size();
-        }
-        break;
+        return child->is_list() && dm && dm->end() != dm->find(*parent->expr.oper.function);
     }
 
     return false;
@@ -297,7 +304,7 @@ bool test_node(const node* nd, define_map_ptr dm) {
 
     switch (nd->type) {
     case node::OBJECT:
-        if (object::LIST == nd->obj.type) {
+        if (nd->is_list()) {
             for (node* item : *nd->obj.list) {
                 if (!test_node(item, dm)) {
                     return false;

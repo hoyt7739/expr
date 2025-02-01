@@ -83,6 +83,40 @@ struct variant {
     variant(variant&& other) noexcept { *this = other; }
 
     ~variant() {
+        clear();
+    }
+
+    variant& operator=(const variant& other) {
+        if (this != &other) {
+            clear();
+            memcpy(this, &other, sizeof(variant));
+            switch (type) {
+            case COMPLEX:
+                complex = new complex_t(*other.complex);
+                break;
+            case STRING:
+                string = new string_t(*other.string);
+                break;
+            case LIST:
+                list = new list_t(*other.list);
+                break;
+            }
+        }
+
+        return *this;
+    }
+
+    variant& operator=(variant&& other) noexcept {
+        if (this != &other) {
+            clear();
+            memcpy(this, &other, sizeof(variant));
+            other.type = INVALID;
+        }
+
+        return *this;
+    }
+
+    void clear() {
         switch (type) {
         case COMPLEX:
             delete complex;
@@ -94,38 +128,32 @@ struct variant {
             delete list;
             break;
         }
+
+        type = INVALID;
     }
 
-    variant& operator=(const variant& other) {
-        if (this == &other) {
-            return *this;
-        }
-
-        memcpy(this, &other, sizeof(variant));
-        switch (type) {
-        case COMPLEX:
-            complex = new complex_t(*other.complex);
-            break;
-        case STRING:
-            string = new string_t(*other.string);
-            break;
-        case LIST:
-            list = new list_t(*other.list);
-            break;
-        }
-
-        return *this;
+    bool is_valid() const {
+        return INVALID != type;
     }
 
-    variant& operator=(variant&& other) noexcept {
-        if (this == &other) {
-            return *this;
-        }
+    bool is_boolean() const {
+        return BOOLEAN == type;
+    }
 
-        memcpy(this, &other, sizeof(variant));
-        other.type = INVALID;
+    bool is_real() const {
+        return REAL == type;
+    }
 
-        return *this;
+    bool is_complex() const {
+        return COMPLEX == type;
+    }
+
+    bool is_string() const {
+        return STRING == type;
+    }
+
+    bool is_list() const {
+        return LIST == type;
     }
 
     bool to_boolean() const {
@@ -176,19 +204,96 @@ struct variant {
             return expr::to_string(complex->real()) + STR('+') + expr::to_string(complex->imag()) + STR('i');
         case STRING:
             return *string;
+        }
+
+        return string_t();
+    }
+
+    string_t to_text() const {
+        switch (type) {
+        case BOOLEAN:
+        case REAL:
+        case COMPLEX:
+            return to_string();
+        case STRING:
+            return STR('\"') + *string + STR('\"');
         case LIST: {
             string_t str;
-            for (variant& var : *list) {
+            for (const variant& item : *list) {
                 if (!str.empty()) {
                     str += STR(',');
                 }
-                str += var.to_string();
+                str += item.to_text();
             }
             return STR('(') + str + STR(')');
         }
         }
 
         return string_t();
+    }
+};
+
+inline bool operator==(const variant& left, const variant& right) noexcept {
+    if (&left == &right) {
+        return true;
+    }
+
+    if (left.type == right.type) {
+        switch (left.type) {
+        case variant::INVALID:
+            return true;
+        case variant::BOOLEAN:
+            return left.boolean == right.boolean;
+        case variant::REAL:
+            return left.real == right.real;
+        case variant::COMPLEX:
+            return *left.complex == *right.complex;
+        case variant::STRING:
+            return *left.string == *right.string;
+        case variant::LIST:
+            return *left.list == *right.list;
+        }
+    }
+
+    return false;
+}
+
+inline bool operator!=(const variant& left, const variant& right) noexcept {
+    return !(left == right);
+}
+
+}
+
+namespace std {
+
+template<>
+struct hash<expr::variant> {
+    static size_t combine(size_t h1, size_t h2) {
+        return h1 ^ (h2 << 1);
+    }
+
+    size_t operator()(const expr::variant var) const noexcept {
+        size_t h1 = hash<int>()(var.type);
+        switch (var.type) {
+        case expr::variant::BOOLEAN:
+            return combine(h1, hash<bool>()(var.boolean));
+        case expr::variant::REAL:
+            return combine(h1, hash<expr::real_t>()(var.real));
+        case expr::variant::COMPLEX:
+            return combine(h1, combine(hash<expr::real_t>()(var.complex->real()), hash<expr::real_t>()(var.complex->imag())));
+        case expr::variant::STRING:
+            return combine(h1, hash<expr::string_t>()(*var.string));
+        case expr::variant::LIST: {
+            size_t h2 = 0;
+            for (const expr::variant& item : *var.list) {
+                size_t h = hash<expr::variant>()(item);
+                h2 = (h2 ? combine(h2, h) : h);
+            }
+            return combine(h1, h2);
+        }
+        }
+
+        return h1;
     }
 };
 

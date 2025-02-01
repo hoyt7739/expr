@@ -2,12 +2,17 @@
 #include "expr_handler.h"
 
 void handle(const expr::string_t& expr) {
-    expr::node* nd = expr::handler::parse(expr);
-    std::cout << "expr: " << expr::to_utf8(expr)
-              << "\nvalid: " << (nullptr != nd)
-              << "\nresult: " << expr::to_utf8(expr::handler::calculate(nd).to_string())
-              << "\ntree: " << expr::to_utf8(expr::handler::tree(nd, 4))
-              << std::endl;
+    expr::handler hdl(expr);
+    size_t failed_pos = 0;
+    bool valid = hdl.is_valid(&failed_pos);
+    std::cout << "expr: " << expr::to_utf8(expr);
+    std::cout << "\nvalid: " << valid;
+    if (valid) {
+        std::cout << "\nresult: " << expr::to_utf8(hdl.calc().to_text());
+        std::cout << "\ntree: " << expr::to_utf8(hdl.tree(4)) << std::endl;
+    } else {
+        std::cout << "\nfailed_pos: " << failed_pos << std::endl;
+    }
 }
 
 int main(int argc, char* argv[]) {

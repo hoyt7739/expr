@@ -8,7 +8,7 @@
 namespace expr {
 
 using node_list = std::vector<struct node*>;
-using define_map_ptr = std::shared_ptr<std::map<string_t, std::pair<string_t, struct node*>>>;
+using define_map_ptr = std::shared_ptr<std::map<string_t, std::pair<string_t, const struct node*>>>;
 
 struct operater {
     enum operater_type {
@@ -16,6 +16,7 @@ struct operater {
         COMPARE,
         ARITHMETIC,
         STATISTIC,
+        INVOCATION,
         FUNCTION
     };
 
@@ -24,7 +25,7 @@ struct operater {
         BINARY
     };
 
-    // extradefs(expr::operater::logic_operater) // mode // priority // text // postpose
+    // extradefs(expr::operater::logic_operater) // mode // priority // text // postpose // usage
     enum logic_operater {
         AND,                // 2 // 8 // &&
         OR,                 // 2 // 9 // ||
@@ -56,7 +57,7 @@ struct operater {
         TRUNC,              // 1 // 1 // trunc
         ROUND,              // 1 // 1 // round
         RINT,               // 1 // 1 // rint
-        FACTORIAL,          // 1 // 1 // ~!    // 1
+        FACTORIAL,          // 1 // 2 // ~!    // 1
         POW,                // 2 // 2 // ^
         EXP,                // 1 // 1 // exp
         LOG,                // 2 // 2 // log
@@ -86,6 +87,8 @@ struct operater {
 
     // extradefs(expr::operater::statistic_operater)
     enum statistic_operater {
+        COUNT,              // 1 // 1 // cnt   // 0 // cnt(<sequence>)
+        UNIQUE,             // 1 // 1 // uni
         SUM,                // 1 // 1 // sum
         AVERAGE,            // 1 // 1 // avg
         VARIANCE,           // 1 // 1 // var
@@ -97,6 +100,16 @@ struct operater {
         RANGE               // 1 // 1 // range
     };
 
+    // extradefs(expr::operater::invocation_operater)
+    enum invocation_operater {
+        HAS,                // 1 // 1 // has   // 0 // has(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
+        PICK,               // 1 // 1 // pick  // 0 // pick(<sequence>,<index>|<function(<item>,<index>,<sequence>)>,[<default>])
+        SELECT,             // 1 // 1 // sel   // 0 // sel(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
+        TRANSFORM,          // 1 // 1 // trans // 0 // trans(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
+        ACCUMULATE,         // 1 // 1 // acc   // 0 // acc(<sequence>,<function(<accumulation>,<item>)>,<initial>)
+        GENERATE            // 1 // 1 // gen   // 0 // gen(<item>|<function(<sequence>)>,<size>|<function(<sequence>,<item>)>)
+    };
+
     operater_type           type;
     operater_mode           mode;
     bool                    postpose;
@@ -106,6 +119,7 @@ struct operater {
         compare_operater    compare;
         arithmetic_operater arithmetic;
         statistic_operater  statistic;
+        invocation_operater invocation;
         string_t*           function;
     };
 };
@@ -192,7 +206,7 @@ struct node {
             }
             break;
         case EXPR:
-            if (operater::FUNCTION == expr.oper.type) {
+            if (is_function()) {
                 delete expr.oper.function;
             }
             delete expr.left;
@@ -257,6 +271,10 @@ struct node {
         return is_expr() && operater::STATISTIC == expr.oper.type;
     }
 
+    bool is_invocation() const {
+        return is_expr() && operater::INVOCATION == expr.oper.type;
+    }
+
     bool is_function() const {
         return is_expr() && operater::FUNCTION == expr.oper.type;
     }
@@ -274,7 +292,7 @@ struct node {
     }
 
     bool is_eval_expr() const {
-        return is_statistic() || is_function();
+        return is_statistic() || is_invocation() || is_function();
     }
 
     bool is_value_expr() const {
@@ -325,6 +343,21 @@ struct node {
                 (is_expr() && other->is_expr() && other->expr.oper.priority < expr.oper.priority));
     }
 
+    string_t function_variables() const {
+        if (!is_function() || !expr.right || !expr.right->is_list()) {
+            return string_t();
+        }
+
+        string_t variables;
+        for (const node* nd : *expr.right->obj.list) {
+            if (nd && nd->is_variable()) {
+                variables += nd->obj.variable;
+            }
+        }
+
+        return variables;
+    }
+
     define_map_ptr define_map() const {
         node* def = nullptr;
         for (const node* nd = this; nd; nd = nd->upper()) {
@@ -339,34 +372,23 @@ struct node {
         }
 
         define_map_ptr dm = std::make_shared<define_map_ptr::element_type>();
-        for (node* item : *def->obj.list) {
+        for (const node* item : *def->obj.list) {
             if (!item || !item->is_compare() || operater::EQUAL != item->expr.oper.compare) {
                 continue;
             }
 
-            node* rule = item->expr.right;
+            const node* rule = item->expr.right;
             if (!rule) {
                 continue;
             }
 
-            node* function_nd = item->expr.left;
-            if (!function_nd || !function_nd->is_function()) {
+            const node* function = item->expr.left;
+            if (!function) {
                 continue;
             }
 
-            node* variables_nd = function_nd->expr.right;
-            if (!variables_nd || !variables_nd->is_list()) {
-                continue;
-            }
-
-            string_t variables;
-            for (node* variable_nd : *variables_nd->obj.list) {
-                if (variable_nd && variable_nd->is_variable()) {
-                    variables += variable_nd->obj.variable;
-                }
-            }
-
-            dm->emplace(*function_nd->expr.oper.function, std::make_pair(variables, rule));
+            string_t variables = function->function_variables();
+            dm->emplace(*function->expr.oper.function, std::make_pair(variables, rule));
         }
 
         if (dm->empty())
