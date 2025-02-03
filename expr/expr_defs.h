@@ -83,6 +83,10 @@ struct operater {
         VECTOR,             // 2 // 6 // ∠
         AMPLITUDE,          // 1 // 1 // amp
         ANGLE,              // 1 // 1 // ang
+        PRIME,              // 1 // 1 // pri
+        COMPOSITE,          // 1 // 1 // com
+        NTH_PRIME,          // 1 // 1 // npri
+        NTH_COMPOSITE       // 1 // 1 // ncom
     };
 
     // extradefs(expr::operater::statistic_operater)
@@ -97,7 +101,9 @@ struct operater {
         MODE,               // 1 // 1 // mode
         MAX,                // 1 // 1 // max
         MIN,                // 1 // 1 // min
-        RANGE               // 1 // 1 // range
+        RANGE,              // 1 // 1 // range
+        GCD,                // 1 // 1 // gcd
+        LCM                 // 1 // 1 // lcm
     };
 
     // extradefs(expr::operater::invocation_operater)

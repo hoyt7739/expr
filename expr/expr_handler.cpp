@@ -274,6 +274,9 @@ node* handler::parse_unary() {
         if (try_match(STR("nt"))) {
             return make_node(make_statistic(operater::COUNT));
         }
+        if (try_match(STR("om"))) {
+            return make_node(make_arithmetic(operater::COMPOSITE));
+        }
         if (try_match(STR("os"))) {
             return make_node(make_arithmetic(operater::COS));
         }
@@ -300,6 +303,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('g'):
+        if (try_match(STR("cd"))) {
+            return make_node(make_statistic(operater::GCD));
+        }
         if (try_match(STR("en"))) {
             return make_node(make_invocation(operater::GENERATE));
         }
@@ -310,6 +316,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('l'):
+        if (try_match(STR("cm"))) {
+            return make_node(make_statistic(operater::LCM));
+        }
         if (try_match(STR("g"))) {
             return make_node(make_arithmetic(operater::LG));
         }
@@ -331,9 +340,20 @@ node* handler::parse_unary() {
             return make_node(make_statistic(operater::MODE));
         }
         break;
+    case STR('n'):
+        if (try_match(STR("pri"))) {
+            return make_node(make_arithmetic(operater::NTH_PRIME));
+        }
+        if (try_match(STR("com"))) {
+            return make_node(make_arithmetic(operater::NTH_COMPOSITE));
+        }
+        break;
     case STR('p'):
         if (try_match(STR("ick"))) {
             return make_node(make_invocation(operater::PICK));
+        }
+        if (try_match(STR("ri"))) {
+            return make_node(make_arithmetic(operater::PRIME));
         }
         break;
     case STR('r'):

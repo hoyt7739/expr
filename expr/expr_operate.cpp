@@ -7,6 +7,80 @@
 
 namespace expr {
 
+class prime_composite {
+public:
+    enum number_type {
+        PRIME,
+        COMPOSITE
+    };
+
+public:
+    static bool test_number(size_t num, number_type type) {
+        if (1 < num) {
+            generate_bitmap(num + 1);
+            return PRIME == type ? s_bitmap[num] : !s_bitmap[num];
+        }
+
+        return false;
+    }
+
+    static bool is_prime(size_t num) {
+        return test_number(num, PRIME);
+    }
+
+    static bool is_composite(size_t num) {
+        return test_number(num, COMPOSITE);
+    }
+
+    static size_t nth_number(size_t nth, number_type type) {
+        size_t m = std::max(nth, size_t(100));
+        generate_bitmap(PRIME == type ? static_cast<size_t>(m * (log(m) + log(log(m)))) : m * 2);
+        for (size_t count = 0, num = 2; num < s_bitmap.size(); ++num) {
+            if (PRIME == type ? s_bitmap[num] : !s_bitmap[num]) {
+                if (count == nth) {
+                    return num;
+                }
+                ++count;
+            }
+        }
+
+        return 0;
+    }
+
+    static size_t nth_prime(size_t nth) {
+        return nth_number(nth, PRIME);
+    }
+
+    static size_t nth_composite(size_t nth) {
+        return nth_number(nth, COMPOSITE);
+    }
+
+private:
+    static void generate_bitmap(size_t size) {
+        if (size <= s_bitmap.size()) {
+            return;
+        }
+
+        size = std::max(size + size / 2, size_t(10000));
+        s_bitmap = std::vector<bool>(size, true);
+        s_bitmap[0] = s_bitmap[1] = false;
+
+        size_t upper = static_cast<size_t>(sqrt(size));
+        for (size_t m = 2; m <= upper; ++m) {
+            if (s_bitmap[m]) {
+                for (size_t n = m * m; n < size; n += m) {
+                    s_bitmap[n] = false;
+                }
+            }
+        }
+    }
+
+private:
+    static std::vector<bool> s_bitmap;
+};
+
+std::vector<bool> prime_composite::s_bitmap;
+
 variant operate(const variant& left, const operater& oper, const variant& right) {
     switch (oper.type) {
     case operater::LOGIC:
@@ -207,6 +281,14 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return right <= -1 || 1 <= right ? asin(1 / right) : variant();
         case operater::VECTOR:
             return std::polar(left, right);
+        case operater::PRIME:
+            return 2 <= right ? static_cast<real_t>(prime_composite::is_prime(static_cast<size_t>(right))) : real_t();
+        case operater::COMPOSITE:
+            return 2 <= right ? static_cast<real_t>(prime_composite::is_composite(static_cast<size_t>(right))) : real_t();
+        case operater::NTH_PRIME:
+            return 0 <= right ? static_cast<real_t>(prime_composite::nth_prime(static_cast<size_t>(right))) : variant();
+        case operater::NTH_COMPOSITE:
+            return 0 <= right ? static_cast<real_t>(prime_composite::nth_composite(static_cast<size_t>(right))) : variant();
         }
         break;
     }
@@ -340,6 +422,36 @@ variant operate(const operater& oper, const list_t& right) {
             return *std::min_element(values.begin(), values.end());
         case operater::RANGE:
             return *std::max_element(values.begin(), values.end()) - *std::min_element(values.begin(), values.end());
+        case operater::GCD:
+        case operater::LCM: {
+            auto gcd = [](size_t m, size_t n) {
+                while (n) {
+                    size_t temp = n;
+                    n = m % n;
+                    m = temp;
+                }
+                return m;
+            };
+
+            auto lcm = [&gcd](size_t m, size_t n) {
+                return m && n ? (m / gcd(m, n)) * n : size_t();
+            };
+
+            size_t res = static_cast<size_t>(fabs(values[0]));
+            for (size_t index = 1; index < values.size(); ++index) {
+                size_t value = static_cast<size_t>(fabs(values[index]));
+                if (operater::GCD == oper.statistic) {
+                    res = gcd(res, value);
+                    if (1 == res) {
+                        break;
+                    }
+                } else {
+                    res = lcm(res, value);
+                }
+            }
+
+            return static_cast<real_t>(res);
+        }
         }
     }
 

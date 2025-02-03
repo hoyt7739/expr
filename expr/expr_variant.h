@@ -79,8 +79,14 @@ struct variant {
     variant(const complex_t& value) : type(COMPLEX), complex(new complex_t(value)) {}
     variant(const string_t& value) : type(STRING), string(new string_t(value)) {}
     variant(const list_t& value) : type(LIST), list(new list_t(value)) {}
-    variant(const variant& other) { *this = other; }
-    variant(variant&& other) noexcept { *this = other; }
+
+    variant(const variant& other) {
+        copy(other);
+    }
+
+    variant(variant&& other) noexcept {
+        move(std::move(other));
+    }
 
     ~variant() {
         clear();
@@ -89,18 +95,7 @@ struct variant {
     variant& operator=(const variant& other) {
         if (this != &other) {
             clear();
-            memcpy(this, &other, sizeof(variant));
-            switch (type) {
-            case COMPLEX:
-                complex = new complex_t(*other.complex);
-                break;
-            case STRING:
-                string = new string_t(*other.string);
-                break;
-            case LIST:
-                list = new list_t(*other.list);
-                break;
-            }
+            copy(other);
         }
 
         return *this;
@@ -109,8 +104,7 @@ struct variant {
     variant& operator=(variant&& other) noexcept {
         if (this != &other) {
             clear();
-            memcpy(this, &other, sizeof(variant));
-            other.type = INVALID;
+            move(std::move(other));
         }
 
         return *this;
@@ -230,6 +224,27 @@ struct variant {
         }
 
         return string_t();
+    }
+
+private:
+    void copy(const variant& other) {
+        memcpy(this, &other, sizeof(variant));
+        switch (type) {
+        case COMPLEX:
+            complex = new complex_t(*other.complex);
+            break;
+        case STRING:
+            string = new string_t(*other.string);
+            break;
+        case LIST:
+            list = new list_t(*other.list);
+            break;
+        }
+    }
+
+    void move(variant&& other) {
+        memcpy(this, &other, sizeof(variant));
+        other.type = INVALID;
     }
 };
 
