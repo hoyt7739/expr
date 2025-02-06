@@ -76,6 +76,7 @@ struct variant {
     variant() : type(INVALID) {}
     variant(bool value) : type(BOOLEAN), boolean(value) {}
     variant(real_t value) : type(REAL), real(value) {}
+    variant(size_t value) : type(REAL), real(static_cast<real_t>(value)) {}
     variant(const complex_t& value) : type(COMPLEX), complex(new complex_t(value)) {}
     variant(const string_t& value) : type(STRING), string(new string_t(value)) {}
     variant(const list_t& value) : type(LIST), list(new list_t(value)) {}
@@ -177,7 +178,7 @@ struct variant {
             return expr::to_real(*string);
         }
 
-        return real_t();
+        return real_t(0);
     }
 
     complex_t to_complex() const {

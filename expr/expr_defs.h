@@ -20,12 +20,20 @@ struct operater {
         FUNCTION
     };
 
-    enum operater_mode {
+    enum operater_kind {
         UNARY = 1,
         BINARY
     };
 
-    // extradefs(expr::operater::logic_operater) // mode // priority // text // postpose // usage
+    enum operater_attribute {
+        KIND,
+        PRIORITY,
+        TEXT,
+        COMMENT,
+        POSTPOSE
+    };
+
+    // extradefs(expr::operater::logic_operater) // kind // priority // text // comment // postpose
     enum logic_operater {
         AND,                // 2 // 8 // &&
         OR,                 // 2 // 9 // ||
@@ -57,15 +65,18 @@ struct operater {
         TRUNC,              // 1 // 1 // trunc
         ROUND,              // 1 // 1 // round
         RINT,               // 1 // 1 // rint
-        FACTORIAL,          // 1 // 2 // ~!    // 1
+        FACTORIAL,          // 1 // 2 // ~!    // postpose // 1
+        PERMUTE,            // 2 // 6 // pm
+        COMBINE,            // 2 // 6 // cb
         POW,                // 2 // 2 // ^
         EXP,                // 1 // 1 // exp
         LOG,                // 2 // 2 // log
         LG,                 // 1 // 1 // lg
         LN,                 // 1 // 1 // ln
-        SQRT,               // 1 // 1 // √
-        ROOT,               // 2 // 2 // √
-        DEG,                // 1 // 1 // °     // 1
+        SQRT,               // 1 // 1 // √     // alias rt
+        ROOT,               // 2 // 2 // √     // alias rt
+        HYPOT,              // 2 // 6 // ⊿     // alias hp
+        DEG,                // 1 // 1 // °     // postpose // 1
         TODEG,              // 1 // 1 // todeg
         TORAD,              // 1 // 1 // torad
         SIN,                // 1 // 1 // sin
@@ -80,7 +91,7 @@ struct operater {
         ARCSEC,             // 1 // 1 // asec
         CSC,                // 1 // 1 // csc
         ARCCSC,             // 1 // 1 // acsc
-        VECTOR,             // 2 // 6 // ∠
+        VECTOR,             // 2 // 6 // ∠     // alias vec
         AMPLITUDE,          // 1 // 1 // amp
         ANGLE,              // 1 // 1 // ang
         PRIME,              // 1 // 1 // pri
@@ -91,10 +102,13 @@ struct operater {
 
     // extradefs(expr::operater::statistic_operater)
     enum statistic_operater {
-        COUNT,              // 1 // 1 // cnt   // 0 // cnt(<sequence>)
+        COUNT,              // 1 // 1 // cnt   // cnt(<sequence>)
         UNIQUE,             // 1 // 1 // uni
-        SUM,                // 1 // 1 // sum
-        AVERAGE,            // 1 // 1 // avg
+        TOTAL,              // 1 // 1 // tot
+        MEAN,               // 1 // 1 // mean
+        GEOMETRIC_MEAN,     // 1 // 1 // gmean
+        QUADRATIC_MEAN,     // 1 // 1 // qmean
+        HARMONIC_MEAN,      // 1 // 1 // hmean
         VARIANCE,           // 1 // 1 // var
         DEVIATION,          // 1 // 1 // dev
         MEDIAN,             // 1 // 1 // med
@@ -108,18 +122,23 @@ struct operater {
 
     // extradefs(expr::operater::invocation_operater)
     enum invocation_operater {
-        HAS,                // 1 // 1 // has   // 0 // has(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
-        PICK,               // 1 // 1 // pick  // 0 // pick(<sequence>,<index>|<function(<item>,<index>,<sequence>)>,[<default>])
-        SELECT,             // 1 // 1 // sel   // 0 // sel(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
-        TRANSFORM,          // 1 // 1 // trans // 0 // trans(<sequence>,<item>|<function(<item>,<index>,<sequence>)>)
-        ACCUMULATE,         // 1 // 1 // acc   // 0 // acc(<sequence>,<function(<accumulation>,<item>)>,<initial>)
-        GENERATE            // 1 // 1 // gen   // 0 // gen(<item>|<function(<sequence>)>,<size>|<function(<sequence>,<item>)>)
+        HAS,                // 1 // 1 // has   // has(<sequence>,<value>|<function(<item>,<index>,<sequence>)>)
+        PICK,               // 1 // 1 // pick  // pick(<sequence>,<index>|<function(<item>,<index>,<sequence>)>,[<default>])
+        SELECT,             // 1 // 1 // sel   // sel(<sequence>,<value>|<function(<item>,<index>,<sequence>)>)
+        TRANSFORM,          // 1 // 1 // trans // trans(<sequence>,<value>|<function(<item>,<index>,<sequence>)>)
+        ACCUMULATE,         // 1 // 1 // acc   // acc(<sequence>,<function(<accumulation>,<item>)>,<initial>)
+        GENERATE,           // 1 // 1 // gen   // gen(<value>|<function(<sequence>)>,<size>|<function(<sequence>,<item>)>)
+        SUMMATE,            // 1 // 1 // ∑     // ∑(<lower>,<upper>,<function(<x>)>), alias sum
+        PRODUCE,            // 1 // 1 // ∏     // ∏(<lower>,<upper>,<function(<x>)>), alias prod
+        INTEGRATE,          // 1 // 1 // ∫     // ∫(<lower>,<upper>,<function(<x>)>), alias inte
+        DOUBLE_INTEGRATE,   // 1 // 1 // ∫∫    // ∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<function(<x>,<y>)>), alias inte2
+        TRIPLE_INTEGRATE    // 1 // 1 // ∫∫∫   // ∫∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<zlower>,<zupper>,<function(<x>,<y>,<z>)>), alias inte3
     };
 
     operater_type           type;
-    operater_mode           mode;
-    bool                    postpose;
+    operater_kind           kind;
     int                     priority;
+    bool                    postpose;
     union {
         logic_operater      logic;
         compare_operater    compare;
@@ -286,11 +305,11 @@ struct node {
     }
 
     bool is_unary() const {
-        return is_expr() && operater::UNARY == expr.oper.mode;
+        return is_expr() && operater::UNARY == expr.oper.kind;
     }
 
     bool is_binary() const {
-        return is_expr() && operater::BINARY == expr.oper.mode;
+        return is_expr() && operater::BINARY == expr.oper.kind;
     }
 
     bool is_boolean_expr() const {

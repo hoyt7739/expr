@@ -13,7 +13,10 @@ enum class parse_state {
     SEGMENT_CLOSED
 };
 
-const size_t MAX_GENERATE_SIZE = 10000000;
+const size_t MAX_GENERATE_SIZE      = 10000000;
+const size_t INTEGRATE_PIECE_SIZE   = 1000000;
+const size_t INTEGRATE2_PIECE_SIZE  = 8000;
+const size_t INTEGRATE3_PIECE_SIZE  = 500;
 
 handler::handler(const string_t& expr) : m_expr(expr) {
     node* defines = parse_defines();
@@ -263,9 +266,6 @@ node* handler::parse_unary() {
         if (try_match(STR("tan"))) {
             return make_node(make_arithmetic(operater::ARCTAN));
         }
-        if (try_match(STR("vg"))) {
-            return make_node(make_statistic(operater::AVERAGE));
-        }
         break;
     case STR('c'):
         if (try_match(STR("eil"))) {
@@ -309,10 +309,30 @@ node* handler::parse_unary() {
         if (try_match(STR("en"))) {
             return make_node(make_invocation(operater::GENERATE));
         }
+        if (try_match(STR("mean"))) {
+            return make_node(make_statistic(operater::GEOMETRIC_MEAN));
+        }
         break;
     case STR('h'):
         if (try_match(STR("as"))) {
             return make_node(make_invocation(operater::HAS));
+        }
+        if (try_match(STR("mean"))) {
+            return make_node(make_statistic(operater::HARMONIC_MEAN));
+        }
+        break;
+    case STR('i'):
+        if (try_match(STR("nte1"))) {
+            return make_node(make_invocation(operater::INTEGRATE));
+        }
+        if (try_match(STR("nte2"))) {
+            return make_node(make_invocation(operater::DOUBLE_INTEGRATE));
+        }
+        if (try_match(STR("nte3"))) {
+            return make_node(make_invocation(operater::TRIPLE_INTEGRATE));
+        }
+        if (try_match(STR("nte"))) {
+            return make_node(make_invocation(operater::INTEGRATE));
         }
         break;
     case STR('l'):
@@ -329,6 +349,9 @@ node* handler::parse_unary() {
     case STR('m'):
         if (try_match(STR("ax"))) {
             return make_node(make_statistic(operater::MAX));
+        }
+        if (try_match(STR("ean"))) {
+            return make_node(make_statistic(operater::MEAN));
         }
         if (try_match(STR("ed"))) {
             return make_node(make_statistic(operater::MEDIAN));
@@ -354,6 +377,14 @@ node* handler::parse_unary() {
         }
         if (try_match(STR("ri"))) {
             return make_node(make_arithmetic(operater::PRIME));
+        }
+        if (try_match(STR("rod"))) {
+            return make_node(make_invocation(operater::PRODUCE));
+        }
+        break;
+    case STR('q'):
+        if (try_match(STR("mean"))) {
+            return make_node(make_statistic(operater::QUADRATIC_MEAN));
         }
         break;
     case STR('r'):
@@ -381,7 +412,7 @@ node* handler::parse_unary() {
             return make_node(make_arithmetic(operater::SIN));
         }
         if (try_match(STR("um"))) {
-            return make_node(make_statistic(operater::SUM));
+            return make_node(make_invocation(operater::SUMMATE));
         }
         break;
     case STR('t'):
@@ -393,6 +424,9 @@ node* handler::parse_unary() {
         }
         if (try_match(STR("orad"))) {
             return make_node(make_arithmetic(operater::TORAD));
+        }
+        if (try_match(STR("ot"))) {
+            return make_node(make_statistic(operater::TOTAL));
         }
         if (try_match(STR("rans"))) {
             return make_node(make_invocation(operater::TRANSFORM));
@@ -418,8 +452,18 @@ node* handler::parse_unary() {
         break;
     case STR('°'):
         return make_node(make_arithmetic(operater::DEG));
+    case STR('∑'):
+        return make_node(make_invocation(operater::SUMMATE));
     case STR('√'):
         return make_node(make_arithmetic(operater::SQRT));
+    case STR('∫'):
+        if (try_match(STR("∫∫"))) {
+            return make_node(make_invocation(operater::TRIPLE_INTEGRATE));
+        }
+        if (try_match(STR("∫"))) {
+            return make_node(make_invocation(operater::DOUBLE_INTEGRATE));
+        }
+        return make_node(make_invocation(operater::INTEGRATE));
     }
 
     if (ch) {
@@ -459,9 +503,24 @@ node* handler::parse_binary() {
         return make_node(make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER));
     case STR('^'):
         return make_node(make_arithmetic(operater::POW));
+    case STR('c'):
+        if (try_match(STR("b"))) {
+            return make_node(make_arithmetic(operater::COMBINE));
+        }
+        break;
+    case STR('h'):
+        if (try_match(STR("p"))) {
+            return make_node(make_arithmetic(operater::HYPOT));
+        }
+        break;
     case STR('l'):
         if (try_match(STR("og"))) {
             return make_node(make_arithmetic(operater::LOG));
+        }
+        break;
+    case STR('p'):
+        if (try_match(STR("m"))) {
+            return make_node(make_arithmetic(operater::PERMUTE));
         }
         break;
     case STR('r'):
@@ -486,6 +545,8 @@ node* handler::parse_binary() {
         return make_node(make_arithmetic(operater::ROOT));
     case STR('∠'):
         return make_node(make_arithmetic(operater::VECTOR));
+    case STR('⊿'):
+        return make_node(make_arithmetic(operater::HYPOT));
     }
 
     if (ch) {
@@ -604,7 +665,7 @@ node* handler::parse_numeric() {
         return nullptr;
     }
 
-    real_t real = to_real(str);
+    real_t real = str.empty() ? 1 : to_real(str);
     return make_node(is_imag ? make_complex(0, real) : make_real(real));
 }
 
@@ -754,15 +815,15 @@ string_t handler::text(const node* nd) {
     case node::EXPR:
         switch (nd->expr.oper.type) {
         case operater::LOGIC:
-            return EXTRA_LOGIC_OPERATER.at(nd->expr.oper.logic).at(2);
+            return EXTRA_LOGIC_OPERATER.text(nd->expr.oper.logic, operater::TEXT);
         case operater::COMPARE:
-            return EXTRA_COMPARE_OPERATER.at(nd->expr.oper.compare).at(2);
+            return EXTRA_COMPARE_OPERATER.text(nd->expr.oper.compare, operater::TEXT);
         case operater::ARITHMETIC:
-            return EXTRA_ARITHMETIC_OPERATER.at(nd->expr.oper.arithmetic).at(2);
+            return EXTRA_ARITHMETIC_OPERATER.text(nd->expr.oper.arithmetic, operater::TEXT);
         case operater::STATISTIC:
-            return EXTRA_STATISTIC_OPERATER.at(nd->expr.oper.statistic).at(2);
+            return EXTRA_STATISTIC_OPERATER.text(nd->expr.oper.statistic, operater::TEXT);
         case operater::INVOCATION:
-            return EXTRA_INVOCATION_OPERATER.at(nd->expr.oper.invocation).at(2);
+            return EXTRA_INVOCATION_OPERATER.text(nd->expr.oper.invocation, operater::TEXT);
         case operater::FUNCTION:
             return *nd->expr.oper.function;
         }
@@ -928,6 +989,15 @@ variant handler::calc_invocation(const node* nd, const calc_assist& assist) {
         return calc_sequence(nd->expr.oper.invocation, wrap, assist);
     case operater::GENERATE:
         return calc_generate(wrap, assist);
+    case operater::SUMMATE:
+    case operater::PRODUCE:
+        return calc_cumulate(nd->expr.oper.invocation, wrap, assist);
+    case operater::INTEGRATE:
+        return calc_integrate(wrap, assist);
+    case operater::DOUBLE_INTEGRATE:
+        return calc_integrate2(wrap, assist);
+    case operater::TRIPLE_INTEGRATE:
+        return calc_integrate3(wrap, assist);
     }
 
     return variant();
@@ -954,7 +1024,7 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
         }
 
         if (2 <= variables.size() && variables[1] == variable) {
-            return static_cast<real_t>(index);
+            return index;
         }
 
         return sequence;
@@ -1060,7 +1130,7 @@ variant handler::calc_generate(const node_list& wrap, const calc_assist& assist)
     size_t max_size = (arg1.is_valid() ? std::min(static_cast<size_t>(arg1.to_real()), MAX_GENERATE_SIZE) : MAX_GENERATE_SIZE);
 
     list_t res;
-    calc_assist generator_assist = {assist.pr, [&res](char_t) { return variant(res); }, assist.dm};
+    calc_assist generator_assist = {assist.pr, [&res](char_t) { return res; }, assist.dm};
     while (res.size() < max_size) {
         variant item = (variables0.empty() ? arg0 : calc_function(wrap[0], generator_assist));
         if (!item.is_valid()) {
@@ -1068,7 +1138,7 @@ variant handler::calc_generate(const node_list& wrap, const calc_assist& assist)
         }
 
         if (!variables1.empty()) {
-            variable_replacer vr = [&res, &item, &variables1](char_t variable) { return variables1[0] == variable ? variant(res) : item; };
+            variable_replacer vr = [&res, &item, &variables1](char_t variable) { return variables1[0] == variable ? res : item; };
             if (!calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                 break;
             }
@@ -1078,6 +1148,156 @@ variant handler::calc_generate(const node_list& wrap, const calc_assist& assist)
     }
 
     return res;
+}
+
+handler::bound_t handler::calc_bound(const node* lower_nd, const node* upper_nd, const calc_assist& assist, bool to_zahlen) {
+    bound_t bound = {calc(lower_nd, assist).to_real(), calc(upper_nd, assist).to_real()};
+    if (bound.second < bound.first) {
+        std::swap(bound.first, bound.second);
+    }
+
+    if (to_zahlen) {
+        bound.first = trunc(bound.first);
+        bound.second = trunc(bound.second);
+    }
+
+    return bound;
+}
+
+variant handler::calc_cumulate(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist) {
+    if (wrap.size() < 3 || wrap[2]->function_variables().empty()) {
+        return variant();
+    }
+
+    variant res;
+    operater oper;
+    switch (invocation) {
+    case operater::SUMMATE:
+        res = real_t(0);
+        oper = make_arithmetic(operater::PLUS);
+        break;
+    case operater::PRODUCE:
+        res = real_t(1);
+        oper = make_arithmetic(operater::MULTIPLY);
+        break;
+    default:
+        return variant();
+    }
+
+    bound_t bound = calc_bound(wrap[0], wrap[1], assist, true);
+    for (real_t n = bound.first; n <= bound.second; ++n) {
+        res = operate(res, oper, calc_function(wrap[2], {assist.pr, [n](char_t) { return n; }, assist.dm}));
+    }
+
+    return res;
+}
+
+variant handler::calc_integrate(const node_list& wrap, const calc_assist& assist) {
+    if (wrap.size() < 3 || wrap[2]->function_variables().empty()) {
+        return variant();
+    }
+
+    bound_t bound = calc_bound(wrap[0], wrap[1], assist);
+    real_t delta = (bound.second - bound.first) / INTEGRATE_PIECE_SIZE;
+    auto integrand = [&wrap, &assist](real_t x) {
+        return calc_function(wrap[2], {assist.pr, [x](char_t) { return x; }, assist.dm}).to_real();
+    };
+
+    real_t res = (integrand(bound.first) + integrand(bound.second)) * 0.5;
+    for (size_t n = 1; n < INTEGRATE_PIECE_SIZE; ++n) {
+        res += integrand(bound.first + delta * n);
+    }
+
+    return res * delta;
+}
+
+variant handler::calc_integrate2(const node_list& wrap, const calc_assist& assist) {
+    if (wrap.size() < 5) {
+        return variant();
+    }
+
+    string_t variables = wrap[4]->function_variables();
+    if (variables.size() < 2) {
+        return variant();
+    }
+
+    bound_t xbound = calc_bound(wrap[0], wrap[1], assist);
+    real_t xdelta = (xbound.second - xbound.first) / INTEGRATE2_PIECE_SIZE;
+
+    bound_t ybound = calc_bound(wrap[2], wrap[3], assist);
+    real_t ydelta = (ybound.second - ybound.first) / INTEGRATE2_PIECE_SIZE;
+
+    auto integrand = [&wrap, &assist, &variables](real_t x, real_t y) {
+        variable_replacer vr = [x, y, &variables](char_t variable) { return variables[0] == variable ? x : y; };
+        return calc_function(wrap[4], {assist.pr, vr, assist.dm}).to_real();
+    };
+
+    real_t res = 0;
+    for (size_t xn = 0; xn <= INTEGRATE2_PIECE_SIZE; ++xn) {
+        real_t x = xbound.first + xdelta * xn;
+        for (size_t yn = 0; yn <= INTEGRATE2_PIECE_SIZE; ++yn) {
+            real_t value = integrand(x, ybound.first + ydelta * yn);
+            if (0 == xn || INTEGRATE2_PIECE_SIZE == xn) {
+                value *= 0.5;
+            }
+            if (0 == yn || INTEGRATE2_PIECE_SIZE == yn) {
+                value *= 0.5;
+            }
+            res += value;
+        }
+    }
+
+    return res * xdelta * ydelta;
+}
+
+variant handler::calc_integrate3(const node_list& wrap, const calc_assist& assist) {
+    if (wrap.size() < 7) {
+        return variant();
+    }
+
+    string_t variables = wrap[6]->function_variables();
+    if (variables.size() < 3) {
+        return variant();
+    }
+
+    bound_t xbound = calc_bound(wrap[0], wrap[1], assist);
+    real_t xdelta = (xbound.second - xbound.first) / INTEGRATE3_PIECE_SIZE;
+
+    bound_t ybound = calc_bound(wrap[2], wrap[3], assist);
+    real_t ydelta = (ybound.second - ybound.first) / INTEGRATE3_PIECE_SIZE;
+
+    bound_t zbound = calc_bound(wrap[4], wrap[5], assist);
+    real_t zdelta = (zbound.second - zbound.first) / INTEGRATE3_PIECE_SIZE;
+
+    auto integrand = [&wrap, &assist, &variables](real_t x, real_t y, real_t z) {
+        variable_replacer vr = [x, y, z, &variables](char_t variable) {
+            return variables[0] == variable ? x : (variables[1] == variable ? y : z);
+        };
+        return calc_function(wrap[6], {assist.pr, vr, assist.dm}).to_real();
+    };
+
+    real_t res = 0;
+    for (size_t xn = 0; xn <= INTEGRATE3_PIECE_SIZE; ++xn) {
+        real_t x = xbound.first + xdelta * xn;
+        for (size_t yn = 0; yn <= INTEGRATE3_PIECE_SIZE; ++yn) {
+            real_t y = ybound.first + ydelta * yn;
+            for (size_t zn = 0; zn <= INTEGRATE3_PIECE_SIZE; ++zn) {
+                real_t value = integrand(x, y, zbound.first + zdelta * zn);
+                if (0 == xn || INTEGRATE3_PIECE_SIZE == xn) {
+                    value *= 0.5;
+                }
+                if (0 == yn || INTEGRATE3_PIECE_SIZE == yn) {
+                    value *= 0.5;
+                }
+                if (0 == zn || INTEGRATE3_PIECE_SIZE == zn) {
+                    value *= 0.5;
+                }
+                res += value;
+            }
+        }
+    }
+
+    return res * xdelta * ydelta * zdelta;
 }
 
 }

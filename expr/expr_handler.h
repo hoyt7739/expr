@@ -10,6 +10,7 @@ class handler {
 public:
     using param_replacer = std::function<variant(const string_t& param)>;
     using variable_replacer = std::function<variant(char_t variable)>;
+    using bound_t = std::pair<real_t, real_t>;
     struct calc_assist {
         param_replacer pr;
         variable_replacer vr;
@@ -61,6 +62,11 @@ private:
     static variant calc_invocation(const node* nd, const calc_assist& assist);
     static variant calc_sequence(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist);
     static variant calc_generate(const node_list& wrap, const calc_assist& assist);
+    static bound_t calc_bound(const node* lower_nd, const node* upper_nd, const calc_assist& assist, bool to_zahlen = false);
+    static variant calc_cumulate(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist);
+    static variant calc_integrate(const node_list& wrap, const calc_assist& assist);
+    static variant calc_integrate2(const node_list& wrap, const calc_assist& assist);
+    static variant calc_integrate3(const node_list& wrap, const calc_assist& assist);
 
 private:
     string_t m_expr;

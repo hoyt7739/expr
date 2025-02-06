@@ -8,9 +8,9 @@ namespace expr {
 operater make_logic(operater::logic_operater logic) {
     operater oper;
     oper.type = operater::LOGIC;
-    oper.mode = static_cast<operater::operater_mode>(EXTRA_LOGIC_OPERATER.number(logic, 0));
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_LOGIC_OPERATER.number(logic, operater::KIND));
+    oper.priority = EXTRA_LOGIC_OPERATER.number(logic, operater::PRIORITY);
     oper.postpose = false;
-    oper.priority = EXTRA_LOGIC_OPERATER.number(logic, 1);
     oper.logic = logic;
     return oper;
 }
@@ -18,9 +18,9 @@ operater make_logic(operater::logic_operater logic) {
 operater make_compare(operater::compare_operater compare) {
     operater oper;
     oper.type = operater::COMPARE;
-    oper.mode = static_cast<operater::operater_mode>(EXTRA_COMPARE_OPERATER.number(compare, 0));
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_COMPARE_OPERATER.number(compare, operater::KIND));
+    oper.priority = EXTRA_COMPARE_OPERATER.number(compare, operater::PRIORITY);
     oper.postpose = false;
-    oper.priority = EXTRA_COMPARE_OPERATER.number(compare, 1);
     oper.compare = compare;
     return oper;
 }
@@ -28,9 +28,9 @@ operater make_compare(operater::compare_operater compare) {
 operater make_arithmetic(operater::arithmetic_operater arithmetic) {
     operater oper;
     oper.type = operater::ARITHMETIC;
-    oper.mode = static_cast<operater::operater_mode>(EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 0));
-    oper.postpose = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 3);
-    oper.priority = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, 1);
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::KIND));
+    oper.priority = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::PRIORITY);
+    oper.postpose = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::POSTPOSE);
     oper.arithmetic = arithmetic;
     return oper;
 }
@@ -38,9 +38,9 @@ operater make_arithmetic(operater::arithmetic_operater arithmetic) {
 operater make_statistic(operater::statistic_operater statistic) {
     operater oper;
     oper.type = operater::STATISTIC;
-    oper.mode = static_cast<operater::operater_mode>(EXTRA_STATISTIC_OPERATER.number(statistic, 0));
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_STATISTIC_OPERATER.number(statistic, operater::KIND));
+    oper.priority = EXTRA_STATISTIC_OPERATER.number(statistic, operater::PRIORITY);
     oper.postpose = false;
-    oper.priority = EXTRA_STATISTIC_OPERATER.number(statistic, 1);
     oper.statistic = statistic;
     return oper;
 }
@@ -48,9 +48,9 @@ operater make_statistic(operater::statistic_operater statistic) {
 operater make_invocation(operater::invocation_operater invocation) {
     operater oper;
     oper.type = operater::INVOCATION;
-    oper.mode = static_cast<operater::operater_mode>(EXTRA_INVOCATION_OPERATER.number(invocation, 0));
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_INVOCATION_OPERATER.number(invocation, operater::KIND));
+    oper.priority = EXTRA_INVOCATION_OPERATER.number(invocation, operater::PRIORITY);
     oper.postpose = false;
-    oper.priority = EXTRA_INVOCATION_OPERATER.number(invocation, 1);
     oper.invocation = invocation;
     return oper;
 }
@@ -58,9 +58,9 @@ operater make_invocation(operater::invocation_operater invocation) {
 operater make_function(const string_t& function) {
     operater oper;
     oper.type = operater::FUNCTION;
-    oper.mode = operater::UNARY;
-    oper.postpose = false;
+    oper.kind = operater::UNARY;
     oper.priority = 1;
+    oper.postpose = false;
     oper.function = new string_t(function);
     return oper;
 }
