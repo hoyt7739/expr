@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #include "expr_link.h"
 
 #define EXTRA_EXPR_DEFS
@@ -107,10 +131,10 @@ object make_variable(char_t variable) {
     return obj;
 }
 
-object make_list(const node_list& list) {
+object make_array(const node_array& array) {
     object obj;
-    obj.type = object::LIST;
-    obj.list = new node_list(list);
+    obj.type = object::ARRAY;
+    obj.array = new node_array(array);
     return obj;
 }
 
@@ -119,8 +143,8 @@ node* make_node(const object& obj) {
     nd->type = node::OBJECT;
     nd->obj = obj;
 
-    if (object::LIST == obj.type) {
-        for (node* item : *obj.list) {
+    if (object::ARRAY == obj.type) {
+        for (node* item : *obj.array) {
             item->super = nd;
         }
     }
@@ -245,10 +269,10 @@ bool detach_node(node* nd) {
     }
 
     node*& super = nd->super;
-    if (super && super->is_list()) {
-        for (auto iter = super->obj.list->begin(); super->obj.list->end() != iter; ++iter) {
+    if (super && super->is_array()) {
+        for (auto iter = super->obj.array->begin(); super->obj.array->end() != iter; ++iter) {
             if (*iter == nd) {
-                super->obj.list->erase(iter);
+                super->obj.array->erase(iter);
                 break;
             }
         }
@@ -285,9 +309,9 @@ bool test_link(const node* parent, node::node_side side, const node* child, defi
         return child->is_value_result();
     case operater::STATISTIC:
     case operater::INVOCATION:
-        return child->is_list();
+        return child->is_array();
     case operater::FUNCTION:
-        return child->is_list() && dm && dm->end() != dm->find(*parent->expr.oper.function);
+        return child->is_array() && dm && dm->end() != dm->find(*parent->expr.oper.function);
     }
 
     return false;
@@ -304,8 +328,8 @@ bool test_node(const node* nd, define_map_ptr dm) {
 
     switch (nd->type) {
     case node::OBJECT:
-        if (nd->is_list()) {
-            for (node* item : *nd->obj.list) {
+        if (nd->is_array()) {
+            for (const node* item : *nd->obj.array) {
                 if (!test_node(item, dm)) {
                     return false;
                 }

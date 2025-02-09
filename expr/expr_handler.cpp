@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #include "expr_handler.h"
 #include <algorithm>
 #include "expr_link.h"
@@ -72,7 +96,8 @@ string_t handler::tree(size_t indent) const {
 }
 
 variant handler::calc(const calc_assist& assist) const {
-    return calc(m_root, assist);
+    variant res = calc(m_root, assist);
+    return res.is_complex() && 0 == res.complex->imag() ? res.complex->real() : res;
 }
 
 char_t handler::get_char(bool skip_space) {
@@ -122,9 +147,9 @@ node* handler::parse_defines() {
         return nullptr;
     }
 
-    node* nd = parse_list(false);
+    node* nd = parse_array(false);
 
-    if (!try_match(STR("}")) || !nd || nd->obj.list->empty()) {
+    if (!try_match(STR("}")) || !nd || nd->obj.array->empty()) {
         delete nd;
         return nullptr;
     }
@@ -148,14 +173,14 @@ node* handler::parse_atom() {
                 }
 
                 if (try_match(STR(","))) {
-                    node* list_node = parse_list(false);
-                    if (!list_node) {
+                    node* nd = parse_array(false);
+                    if (!nd) {
                         goto failed;
                     }
 
-                    list_node->obj.list->insert(list_node->obj.list->begin(), pending);
-                    pending->super = list_node;
-                    pending = list_node;
+                    nd->obj.array->insert(nd->obj.array->begin(), pending);
+                    pending->super = nd;
+                    pending = nd;
                 }
 
                 if (!try_match(STR(")"))) {
@@ -176,7 +201,7 @@ node* handler::parse_atom() {
                     }
 
                     if (is_eval) {
-                        pending = parse_list(true);
+                        pending = parse_array(true);
                         if (!pending) {
                             goto failed;
                         }
@@ -251,11 +276,8 @@ node* handler::parse_unary() {
         if (try_match(STR("csc"))) {
             return make_node(make_arithmetic(operater::ARCCSC));
         }
-        if (try_match(STR("mp"))) {
-            return make_node(make_arithmetic(operater::AMPLITUDE));
-        }
-        if (try_match(STR("ng"))) {
-            return make_node(make_arithmetic(operater::ANGLE));
+        if (try_match(STR("rg"))) {
+            return make_node(make_arithmetic(operater::PHASE));
         }
         if (try_match(STR("sec"))) {
             return make_node(make_arithmetic(operater::ARCSEC));
@@ -276,6 +298,9 @@ node* handler::parse_unary() {
         }
         if (try_match(STR("om"))) {
             return make_node(make_arithmetic(operater::COMPOSITE));
+        }
+        if (try_match(STR("onj"))) {
+            return make_node(make_arithmetic(operater::CONJUGATE));
         }
         if (try_match(STR("os"))) {
             return make_node(make_arithmetic(operater::COS));
@@ -303,6 +328,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('g'):
+        if (try_match(STR("amma"))) {
+            return make_node(make_arithmetic(operater::GAMMA));
+        }
         if (try_match(STR("cd"))) {
             return make_node(make_statistic(operater::GCD));
         }
@@ -322,6 +350,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('i'):
+        if (try_match(STR("mag"))) {
+            return make_node(make_arithmetic(operater::IMAGINARY));
+        }
         if (try_match(STR("nte1"))) {
             return make_node(make_invocation(operater::INTEGRATE));
         }
@@ -390,6 +421,9 @@ node* handler::parse_unary() {
     case STR('r'):
         if (try_match(STR("ange"))) {
             return make_node(make_statistic(operater::RANGE));
+        }
+        if (try_match(STR("eal"))) {
+            return make_node(make_arithmetic(operater::REAL));
         }
         if (try_match(STR("int"))) {
             return make_node(make_arithmetic(operater::RINT));
@@ -606,6 +640,9 @@ node* handler::parse_constant() {
     if (try_match(STR("true"))) {
         return make_node(make_boolean(true));
     }
+    if (try_match(STR("∞")) || try_match(STR("inf"))) {
+        return make_node(make_real(INFINITY));
+    }
     if (try_match(STR("π")) || try_match(STR("pi"))) {
         return make_node(make_real(CONST_PI));
     }
@@ -733,12 +770,12 @@ node* handler::parse_variable() {
     return nullptr;
 }
 
-node* handler::parse_list(bool boundary) {
+node* handler::parse_array(bool boundary) {
     if (boundary && !try_match(STR("("))) {
         return nullptr;
     }
 
-    node_list list;
+    node_array array;
     bool closed = false;
     bool failed = false;
     while (true) {
@@ -753,7 +790,7 @@ node* handler::parse_list(bool boundary) {
             break;
         }
 
-        list.push_back(item);
+        array.push_back(item);
 
         if (!try_match(STR(","))) {
             closed = boundary && try_match(STR(")"));
@@ -762,13 +799,13 @@ node* handler::parse_list(bool boundary) {
     }
 
     if ((boundary && !closed) || failed) {
-        for (node* item : list) {
+        for (node* item : array) {
             delete item;
         }
         return nullptr;
     }
 
-    return make_node(make_list(list));
+    return make_node(make_array(array));
 }
 
 string_t handler::text(const node* nd) {
@@ -780,29 +817,20 @@ string_t handler::text(const node* nd) {
     case node::OBJECT:
         switch (nd->obj.type) {
         case object::BOOLEAN:
-            return nd->obj.boolean ? STR("true") : STR("false");
+            return to_string(nd->obj.boolean);
         case object::REAL:
             return to_string(nd->obj.real);
-        case object::COMPLEX: {
-            real_t real = nd->obj.complex->real();
-            real_t imag = nd->obj.complex->imag();
-            if (!imag) {
-                return to_string(real);
-            }
-            if (!real) {
-                return to_string(imag) + STR('i');
-            }
-            return to_string(real) + STR('+') + to_string(imag) + STR('i');
-        }
+        case object::COMPLEX:
+            return to_string(*nd->obj.complex);
         case object::STRING:
             return STR('\"') + *nd->obj.string + STR('\"');
         case object::PARAM:
             return STR('[') + *nd->obj.param + STR(']');
         case object::VARIABLE:
             return string_t(1, nd->obj.variable);
-        case object::LIST: {
+        case object::ARRAY: {
             string_t str;
-            for (node* item : *nd->obj.list) {
+            for (const node* item : *nd->obj.array) {
                 if (!str.empty()) {
                     str += STR(',');
                 }
@@ -868,7 +896,7 @@ string_t handler::tree(const node* nd, size_t indent) {
         return string_t();
     }
 
-    string_t str = string_t(3, STR('─')) + STR(' ') + (nd->is_list() ? STR("list") : text(nd));
+    string_t str = string_t(3, STR('─')) + STR(' ') + (nd->is_array() ? STR("array") : text(nd));
     if (nd->upper()) {
         node::node_side side = nd->side();
         str[0] = (node::LEFT == side ? STR('┌') : (node::TAIL == nd->pos() ? STR('└') : STR('├')));
@@ -883,8 +911,8 @@ string_t handler::tree(const node* nd, size_t indent) {
     }
 
     str = STR('\n') + string_t(indent, STR(' ')) + str;
-    if (nd->is_list()) {
-        for (node* item : *nd->obj.list) {
+    if (nd->is_array()) {
+        for (const node* item : *nd->obj.array) {
             str += tree(item, indent);
         }
     } else if (nd->is_expr()) {
@@ -938,10 +966,10 @@ variant handler::calc_object(const node* nd, const calc_assist& assist) {
         return assist.pr ? assist.pr(*nd->obj.param) : variant();
     case object::VARIABLE:
         return assist.vr ? assist.vr(nd->obj.variable) : variant();
-    case object::LIST: {
-        list_t list(nd->obj.list->size());
-        std::transform(nd->obj.list->begin(), nd->obj.list->end(), list.begin(), [&assist](node* nd) { return calc(nd, assist); });
-        return list;
+    case object::ARRAY: {
+        sequence_t sequence(nd->obj.array->size());
+        std::transform(nd->obj.array->begin(), nd->obj.array->end(), sequence.begin(), [&assist](node* nd) { return calc(nd, assist); });
+        return sequence;
     }
     }
 
@@ -959,13 +987,13 @@ variant handler::calc_function(const node* nd, const calc_assist& assist) {
     }
 
     variant right = calc(nd->expr.right, assist);
-    if (!right.is_list()) {
+    if (!right.is_sequence()) {
         return variant();
     }
 
     const string_t& variables = iter->second.first;
     const node* rule = iter->second.second;
-    const list_t& args = *right.list;
+    const sequence_t& args = *right.sequence;
     variable_replacer vr = [&variables, &args](char_t variable) {
         size_t pos = variables.find(variable);
         return string_t::npos != pos && pos < args.size() ? args[pos] : variant();
@@ -975,20 +1003,20 @@ variant handler::calc_function(const node* nd, const calc_assist& assist) {
 }
 
 variant handler::calc_invocation(const node* nd, const calc_assist& assist) {
-    if (!nd->expr.right || !nd->expr.right->is_list()) {
+    if (!nd->expr.right || !nd->expr.right->is_array()) {
         return variant();
     }
 
-    const node_list& wrap = *nd->expr.right->obj.list;
+    const node_array& wrap = *nd->expr.right->obj.array;
     switch (nd->expr.oper.invocation) {
+    case operater::GENERATE:
+        return calc_generate(wrap, assist);
     case operater::HAS:
     case operater::PICK:
     case operater::SELECT:
     case operater::TRANSFORM:
     case operater::ACCUMULATE:
         return calc_sequence(nd->expr.oper.invocation, wrap, assist);
-    case operater::GENERATE:
-        return calc_generate(wrap, assist);
     case operater::SUMMATE:
     case operater::PRODUCE:
         return calc_cumulate(nd->expr.oper.invocation, wrap, assist);
@@ -1003,13 +1031,46 @@ variant handler::calc_invocation(const node* nd, const calc_assist& assist) {
     return variant();
 }
 
-variant handler::calc_sequence(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist) {
+variant handler::calc_generate(const node_array& wrap, const calc_assist& assist) {
+    if (wrap.size() < 2) {
+        return variant();
+    }
+
+    string_t variables0 = wrap[0]->function_variables();
+    variant arg0 = (variables0.empty() ? calc(wrap[0], assist) : variant());
+
+    string_t variables1 = wrap[1]->function_variables();
+    variant arg1 = (variables1.empty() ? calc(wrap[1], assist) : variant());
+    size_t max_size = (arg1.is_valid() ? std::min(static_cast<size_t>(arg1.to_real()), MAX_GENERATE_SIZE) : MAX_GENERATE_SIZE);
+
+    sequence_t res;
+    calc_assist generator_assist = {assist.pr, [&res](char_t) { return res; }, assist.dm};
+    while (res.size() < max_size) {
+        variant item = (variables0.empty() ? arg0 : calc_function(wrap[0], generator_assist));
+        if (!item.is_valid()) {
+            break;
+        }
+
+        if (!variables1.empty()) {
+            variable_replacer vr = [&res, &item, &variables1](char_t variable) { return variables1[0] == variable ? res : item; };
+            if (!calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
+                break;
+            }
+        }
+
+        res.emplace_back(std::move(item));
+    }
+
+    return res;
+}
+
+variant handler::calc_sequence(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 2) {
         return variant();
     }
 
     variant arg0 = calc(wrap[0], assist);
-    if (!arg0.is_list()) {
+    if (!arg0.is_sequence()) {
         return variant();
     }
 
@@ -1017,7 +1078,8 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
     variant arg1 = (variables.empty() ? calc(wrap[1], assist) : variant());
 
     using std::placeholders::_1;
-    const list_t& sequence = *arg0.list;
+    const sequence_t& sequence = *arg0.sequence;
+    size_t size = sequence.size();
     auto sequence_vr = [&sequence](size_t index, const string_t& variables, char_t variable) -> variant {
         if (1 <= variables.size() && variables[0] == variable) {
             return sequence[index];
@@ -1036,7 +1098,7 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
             return sequence.end() != std::find(sequence.begin(), sequence.end(), arg1);
         }
 
-        for (size_t index = 0; index < sequence.size(); ++index) {
+        for (size_t index = 0; index < size; ++index) {
             variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
             if (calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                 return true;
@@ -1049,11 +1111,11 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
         variant arg2 = (3 <= wrap.size() ? calc(wrap[2], assist) : variant());
         if (variables.empty()) {
             real_t real = arg1.to_real();
-            size_t index = static_cast<size_t>(real < 0 ? sequence.size() + real : real);
-            return index < sequence.size() ? sequence[index] : arg2;
+            size_t index = static_cast<size_t>(real < 0 ? size + real : real);
+            return index < size ? sequence[index] : arg2;
         }
 
-        for (size_t index = 0; index < sequence.size(); ++index) {
+        for (size_t index = 0; index < size; ++index) {
             variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
             if (calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                 return sequence[index];
@@ -1063,8 +1125,8 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
         return arg2;
     }
     case operater::SELECT: {
-        list_t res;
-        for (size_t index = 0; index < sequence.size(); ++index) {
+        sequence_t res;
+        for (size_t index = 0; index < size; ++index) {
             if (variables.empty()) {
                 if (sequence[index] == arg1) {
                     res.push_back(arg1);
@@ -1080,16 +1142,13 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
         return res;
     }
     case operater::TRANSFORM: {
-        list_t res;
-        for (size_t index = 0; index < sequence.size(); ++index) {
+        sequence_t res(size);
+        for (size_t index = 0; index < size; ++index) {
             if (variables.empty()) {
-                res.push_back(arg1);
+                res[index] = arg1;
             } else {
                 variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
-                variant item = calc_function(wrap[1], {assist.pr, vr, assist.dm});
-                if (item.is_valid()) {
-                    res.emplace_back(std::move(item));
-                }
+                res[index] = calc_function(wrap[1], {assist.pr, vr, assist.dm});
             }
         }
 
@@ -1117,39 +1176,6 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
     return variant();
 }
 
-variant handler::calc_generate(const node_list& wrap, const calc_assist& assist) {
-    if (wrap.size() < 2) {
-        return variant();
-    }
-
-    string_t variables0 = wrap[0]->function_variables();
-    variant arg0 = (variables0.empty() ? calc(wrap[0], assist) : variant());
-
-    string_t variables1 = wrap[1]->function_variables();
-    variant arg1 = (variables1.empty() ? calc(wrap[1], assist) : variant());
-    size_t max_size = (arg1.is_valid() ? std::min(static_cast<size_t>(arg1.to_real()), MAX_GENERATE_SIZE) : MAX_GENERATE_SIZE);
-
-    list_t res;
-    calc_assist generator_assist = {assist.pr, [&res](char_t) { return res; }, assist.dm};
-    while (res.size() < max_size) {
-        variant item = (variables0.empty() ? arg0 : calc_function(wrap[0], generator_assist));
-        if (!item.is_valid()) {
-            break;
-        }
-
-        if (!variables1.empty()) {
-            variable_replacer vr = [&res, &item, &variables1](char_t variable) { return variables1[0] == variable ? res : item; };
-            if (!calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
-                break;
-            }
-        }
-
-        res.emplace_back(std::move(item));
-    }
-
-    return res;
-}
-
 handler::bound_t handler::calc_bound(const node* lower_nd, const node* upper_nd, const calc_assist& assist, bool to_zahlen) {
     bound_t bound = {calc(lower_nd, assist).to_real(), calc(upper_nd, assist).to_real()};
     if (bound.second < bound.first) {
@@ -1164,7 +1190,7 @@ handler::bound_t handler::calc_bound(const node* lower_nd, const node* upper_nd,
     return bound;
 }
 
-variant handler::calc_cumulate(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist) {
+variant handler::calc_cumulate(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 3 || wrap[2]->function_variables().empty()) {
         return variant();
     }
@@ -1192,7 +1218,7 @@ variant handler::calc_cumulate(operater::invocation_operater invocation, const n
     return res;
 }
 
-variant handler::calc_integrate(const node_list& wrap, const calc_assist& assist) {
+variant handler::calc_integrate(const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 3 || wrap[2]->function_variables().empty()) {
         return variant();
     }
@@ -1211,7 +1237,7 @@ variant handler::calc_integrate(const node_list& wrap, const calc_assist& assist
     return res * delta;
 }
 
-variant handler::calc_integrate2(const node_list& wrap, const calc_assist& assist) {
+variant handler::calc_integrate2(const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 5) {
         return variant();
     }
@@ -1250,7 +1276,7 @@ variant handler::calc_integrate2(const node_list& wrap, const calc_assist& assis
     return res * xdelta * ydelta;
 }
 
-variant handler::calc_integrate3(const node_list& wrap, const calc_assist& assist) {
+variant handler::calc_integrate3(const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 7) {
         return variant();
     }

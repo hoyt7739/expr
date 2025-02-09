@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #ifndef EXPR_VARIANT_H
 #define EXPR_VARIANT_H
 
@@ -14,7 +38,7 @@ using real_t        = double;
 using complex_t     = std::complex<real_t>;
 using string_t      = std::wstring;
 using char_t        = string_t::value_type;
-using list_t        = std::vector<struct variant>;
+using sequence_t    = std::vector<struct variant>;
 
 #define STR(s) L##s
 
@@ -22,14 +46,16 @@ const real_t CONST_PI   = 3.1415926535897932384626433832795;
 const real_t CONST_E    = 2.7182818284590452353602874713527;
 const real_t EPSILON    = 1.0e-9;
 
-inline bool is_zahlen(real_t value) {
-    return fabs(value - round(value)) < EPSILON;
+inline bool approach_to(real_t left, real_t right) {
+    return fabs(left - right) < EPSILON;
 }
 
-inline real_t to_real(const string_t& str) {
-    real_t real{};
-    try { real = std::stod(str); } catch (...) {}
-    return real;
+inline bool is_zahlen(real_t value) {
+    return approach_to(value, round(value));
+}
+
+inline string_t to_string(bool boolean) {
+    return boolean ? STR("true") : STR("false");
 }
 
 inline string_t to_string(real_t real) {
@@ -44,6 +70,31 @@ inline string_t to_string(real_t real) {
     }
 
     return str;
+}
+
+inline string_t to_string(const complex_t& complex) {
+    real_t real = complex.real();
+    real_t imag = complex.imag();
+    if (approach_to(imag, 0)) {
+        return to_string(real);
+    }
+
+    string_t imag_str;
+    if (approach_to(imag, 1)) {
+        imag_str = STR('i');
+    } else if (approach_to(imag, -1)) {
+        imag_str = STR("-i");
+    } else {
+        imag_str = to_string(imag) + STR('i');
+    }
+
+    return approach_to(real, 0) ? imag_str : to_string(real) + (imag < 0 ? imag_str : STR('+') + imag_str);
+}
+
+inline real_t to_real(const string_t& str) {
+    real_t real{};
+    try { real = std::stod(str); } catch (...) {}
+    return real;
 }
 
 inline std::string to_utf8(const string_t& str) {
@@ -61,7 +112,7 @@ struct variant {
         REAL,
         COMPLEX,
         STRING,
-        LIST
+        SEQUENCE
     };
 
     variant_type    type;
@@ -70,16 +121,16 @@ struct variant {
         real_t      real;
         complex_t*  complex;
         string_t*   string;
-        list_t*     list;
+        sequence_t* sequence;
     };
 
     variant() : type(INVALID) {}
     variant(bool value) : type(BOOLEAN), boolean(value) {}
     variant(real_t value) : type(REAL), real(value) {}
-    variant(size_t value) : type(REAL), real(static_cast<real_t>(value)) {}
+    variant(size_t value) : type(REAL), real(real_t(value)) {}
     variant(const complex_t& value) : type(COMPLEX), complex(new complex_t(value)) {}
     variant(const string_t& value) : type(STRING), string(new string_t(value)) {}
-    variant(const list_t& value) : type(LIST), list(new list_t(value)) {}
+    variant(const sequence_t& value) : type(SEQUENCE), sequence(new sequence_t(value)) {}
 
     variant(const variant& other) {
         copy(other);
@@ -119,8 +170,8 @@ struct variant {
         case STRING:
             delete string;
             break;
-        case LIST:
-            delete list;
+        case SEQUENCE:
+            delete sequence;
             break;
         }
 
@@ -147,8 +198,8 @@ struct variant {
         return STRING == type;
     }
 
-    bool is_list() const {
-        return LIST == type;
+    bool is_sequence() const {
+        return SEQUENCE == type;
     }
 
     bool to_boolean() const {
@@ -192,11 +243,11 @@ struct variant {
     string_t to_string() const {
         switch (type) {
         case BOOLEAN:
-            return boolean ? STR("true") : STR("false");
+            return expr::to_string(boolean);
         case REAL:
             return expr::to_string(real);
         case COMPLEX:
-            return expr::to_string(complex->real()) + STR('+') + expr::to_string(complex->imag()) + STR('i');
+            return expr::to_string(*complex);
         case STRING:
             return *string;
         }
@@ -212,9 +263,9 @@ struct variant {
             return to_string();
         case STRING:
             return STR('\"') + *string + STR('\"');
-        case LIST: {
+        case SEQUENCE: {
             string_t str;
-            for (const variant& item : *list) {
+            for (const variant& item : *sequence) {
                 if (!str.empty()) {
                     str += STR(',');
                 }
@@ -237,8 +288,8 @@ private:
         case STRING:
             string = new string_t(*other.string);
             break;
-        case LIST:
-            list = new list_t(*other.list);
+        case SEQUENCE:
+            sequence = new sequence_t(*other.sequence);
             break;
         }
     }
@@ -266,8 +317,8 @@ inline bool operator==(const variant& left, const variant& right) noexcept {
             return *left.complex == *right.complex;
         case variant::STRING:
             return *left.string == *right.string;
-        case variant::LIST:
-            return *left.list == *right.list;
+        case variant::SEQUENCE:
+            return *left.sequence == *right.sequence;
         }
     }
 
@@ -299,9 +350,9 @@ struct hash<expr::variant> {
             return combine(h1, combine(hash<expr::real_t>()(var.complex->real()), hash<expr::real_t>()(var.complex->imag())));
         case expr::variant::STRING:
             return combine(h1, hash<expr::string_t>()(*var.string));
-        case expr::variant::LIST: {
+        case expr::variant::SEQUENCE: {
             size_t h2 = 0;
-            for (const expr::variant& item : *var.list) {
+            for (const expr::variant& item : *var.sequence) {
                 size_t h = hash<expr::variant>()(item);
                 h2 = (h2 ? combine(h2, h) : h);
             }

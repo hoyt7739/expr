@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #ifndef EXPR_HANDLER_H
 #define EXPR_HANDLER_H
 
@@ -50,7 +74,7 @@ private:
     node* parse_string();
     node* parse_param();
     node* parse_variable();
-    node* parse_list(bool boundary);
+    node* parse_array(bool boundary);
 
     static string_t text(const node* nd);
     static string_t expr(const node* nd);
@@ -60,13 +84,13 @@ private:
     static variant calc_object(const node* nd, const calc_assist& assist);
     static variant calc_function(const node* nd, const calc_assist& assist);
     static variant calc_invocation(const node* nd, const calc_assist& assist);
-    static variant calc_sequence(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist);
-    static variant calc_generate(const node_list& wrap, const calc_assist& assist);
+    static variant calc_generate(const node_array& wrap, const calc_assist& assist);
+    static variant calc_sequence(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist);
     static bound_t calc_bound(const node* lower_nd, const node* upper_nd, const calc_assist& assist, bool to_zahlen = false);
-    static variant calc_cumulate(operater::invocation_operater invocation, const node_list& wrap, const calc_assist& assist);
-    static variant calc_integrate(const node_list& wrap, const calc_assist& assist);
-    static variant calc_integrate2(const node_list& wrap, const calc_assist& assist);
-    static variant calc_integrate3(const node_list& wrap, const calc_assist& assist);
+    static variant calc_cumulate(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist);
+    static variant calc_integrate(const node_array& wrap, const calc_assist& assist);
+    static variant calc_integrate2(const node_array& wrap, const calc_assist& assist);
+    static variant calc_integrate3(const node_array& wrap, const calc_assist& assist);
 
 private:
     string_t m_expr;
