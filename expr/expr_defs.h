@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #ifndef EXPR_DEFS_H
 #define EXPR_DEFS_H
 
@@ -59,13 +83,18 @@ struct operater {
         DIVIDE,             // 2 // 4 // /
         MOD,                // 2 // 4 // %
         NEGATIVE,           // 1 // 3 // -
-        ABS,                // 1 // 1 // abs
         CEIL,               // 1 // 1 // ceil
         FLOOR,              // 1 // 1 // floor
         TRUNC,              // 1 // 1 // trunc
         ROUND,              // 1 // 1 // round
         RINT,               // 1 // 1 // rint
+        ABS,                // 1 // 1 // abs
+        PHASE,              // 1 // 1 // arg
+        REAL,               // 1 // 1 // real
+        IMAGINARY,          // 1 // 1 // imag
+        CONJUGATE,          // 1 // 1 // conj
         FACTORIAL,          // 1 // 2 // ~!    // postpose // 1
+        GAMMA,              // 1 // 1 // gamma
         PERMUTE,            // 2 // 6 // pm
         COMBINE,            // 2 // 6 // cb
         POW,                // 2 // 2 // ^
@@ -76,6 +105,7 @@ struct operater {
         SQRT,               // 1 // 1 // √     // alias rt
         ROOT,               // 2 // 2 // √     // alias rt
         HYPOT,              // 2 // 6 // ⊿     // alias hp
+        VECTOR,             // 2 // 6 // ∠     // alias vec
         DEG,                // 1 // 1 // °     // postpose // 1
         TODEG,              // 1 // 1 // todeg
         TORAD,              // 1 // 1 // torad
@@ -91,9 +121,6 @@ struct operater {
         ARCSEC,             // 1 // 1 // asec
         CSC,                // 1 // 1 // csc
         ARCCSC,             // 1 // 1 // acsc
-        VECTOR,             // 2 // 6 // ∠     // alias vec
-        AMPLITUDE,          // 1 // 1 // amp
-        ANGLE,              // 1 // 1 // ang
         PRIME,              // 1 // 1 // pri
         COMPOSITE,          // 1 // 1 // com
         NTH_PRIME,          // 1 // 1 // npri
@@ -128,11 +155,11 @@ struct operater {
         TRANSFORM,          // 1 // 1 // trans // trans(<sequence>,<value>|<function(<item>,<index>,<sequence>)>)
         ACCUMULATE,         // 1 // 1 // acc   // acc(<sequence>,<function(<accumulation>,<item>)>,<initial>)
         GENERATE,           // 1 // 1 // gen   // gen(<value>|<function(<sequence>)>,<size>|<function(<sequence>,<item>)>)
-        SUMMATE,            // 1 // 1 // ∑     // ∑(<lower>,<upper>,<function(<x>)>), alias sum
-        PRODUCE,            // 1 // 1 // ∏     // ∏(<lower>,<upper>,<function(<x>)>), alias prod
-        INTEGRATE,          // 1 // 1 // ∫     // ∫(<lower>,<upper>,<function(<x>)>), alias inte
-        DOUBLE_INTEGRATE,   // 1 // 1 // ∫∫    // ∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<function(<x>,<y>)>), alias inte2
-        TRIPLE_INTEGRATE    // 1 // 1 // ∫∫∫   // ∫∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<zlower>,<zupper>,<function(<x>,<y>,<z>)>), alias inte3
+        SUMMATE,            // 1 // 1 // ∑     // ∑(<lower>,<upper>,<function(<x>)>); alias sum
+        PRODUCE,            // 1 // 1 // ∏     // ∏(<lower>,<upper>,<function(<x>)>); alias prod
+        INTEGRATE,          // 1 // 1 // ∫     // ∫(<lower>,<upper>,<function(<x>)>); alias inte
+        DOUBLE_INTEGRATE,   // 1 // 1 // ∫∫    // ∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<function(<x>,<y>)>); alias inte2
+        TRIPLE_INTEGRATE    // 1 // 1 // ∫∫∫   // ∫∫∫(<xlower>,<xupper>,<ylower>,<yupper>,<zlower>,<zupper>,<function(<x>,<y>,<z>)>); alias inte3
     };
 
     operater_type           type;

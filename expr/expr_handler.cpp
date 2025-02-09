@@ -1,3 +1,27 @@
+/*
+  MIT License
+
+  Copyright (c) 2025 Kong Pengsheng
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+*/
+
 #include "expr_handler.h"
 #include <algorithm>
 #include "expr_link.h"
@@ -72,7 +96,8 @@ string_t handler::tree(size_t indent) const {
 }
 
 variant handler::calc(const calc_assist& assist) const {
-    return calc(m_root, assist);
+    variant res = calc(m_root, assist);
+    return res.is_complex() && 0 == res.complex->imag() ? res.complex->real() : res;
 }
 
 char_t handler::get_char(bool skip_space) {
@@ -251,11 +276,8 @@ node* handler::parse_unary() {
         if (try_match(STR("csc"))) {
             return make_node(make_arithmetic(operater::ARCCSC));
         }
-        if (try_match(STR("mp"))) {
-            return make_node(make_arithmetic(operater::AMPLITUDE));
-        }
-        if (try_match(STR("ng"))) {
-            return make_node(make_arithmetic(operater::ANGLE));
+        if (try_match(STR("rg"))) {
+            return make_node(make_arithmetic(operater::PHASE));
         }
         if (try_match(STR("sec"))) {
             return make_node(make_arithmetic(operater::ARCSEC));
@@ -276,6 +298,9 @@ node* handler::parse_unary() {
         }
         if (try_match(STR("om"))) {
             return make_node(make_arithmetic(operater::COMPOSITE));
+        }
+        if (try_match(STR("onj"))) {
+            return make_node(make_arithmetic(operater::CONJUGATE));
         }
         if (try_match(STR("os"))) {
             return make_node(make_arithmetic(operater::COS));
@@ -303,6 +328,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('g'):
+        if (try_match(STR("amma"))) {
+            return make_node(make_arithmetic(operater::GAMMA));
+        }
         if (try_match(STR("cd"))) {
             return make_node(make_statistic(operater::GCD));
         }
@@ -322,6 +350,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('i'):
+        if (try_match(STR("mag"))) {
+            return make_node(make_arithmetic(operater::IMAGINARY));
+        }
         if (try_match(STR("nte1"))) {
             return make_node(make_invocation(operater::INTEGRATE));
         }
@@ -390,6 +421,9 @@ node* handler::parse_unary() {
     case STR('r'):
         if (try_match(STR("ange"))) {
             return make_node(make_statistic(operater::RANGE));
+        }
+        if (try_match(STR("eal"))) {
+            return make_node(make_arithmetic(operater::REAL));
         }
         if (try_match(STR("int"))) {
             return make_node(make_arithmetic(operater::RINT));
@@ -606,6 +640,9 @@ node* handler::parse_constant() {
     if (try_match(STR("true"))) {
         return make_node(make_boolean(true));
     }
+    if (try_match(STR("∞")) || try_match(STR("inf"))) {
+        return make_node(make_real(INFINITY));
+    }
     if (try_match(STR("π")) || try_match(STR("pi"))) {
         return make_node(make_real(CONST_PI));
     }
@@ -780,20 +817,11 @@ string_t handler::text(const node* nd) {
     case node::OBJECT:
         switch (nd->obj.type) {
         case object::BOOLEAN:
-            return nd->obj.boolean ? STR("true") : STR("false");
+            return to_string(nd->obj.boolean);
         case object::REAL:
             return to_string(nd->obj.real);
-        case object::COMPLEX: {
-            real_t real = nd->obj.complex->real();
-            real_t imag = nd->obj.complex->imag();
-            if (!imag) {
-                return to_string(real);
-            }
-            if (!real) {
-                return to_string(imag) + STR('i');
-            }
-            return to_string(real) + STR('+') + to_string(imag) + STR('i');
-        }
+        case object::COMPLEX:
+            return to_string(*nd->obj.complex);
         case object::STRING:
             return STR('\"') + *nd->obj.string + STR('\"');
         case object::PARAM:
@@ -802,7 +830,7 @@ string_t handler::text(const node* nd) {
             return string_t(1, nd->obj.variable);
         case object::LIST: {
             string_t str;
-            for (node* item : *nd->obj.list) {
+            for (const node* item : *nd->obj.list) {
                 if (!str.empty()) {
                     str += STR(',');
                 }
@@ -884,7 +912,7 @@ string_t handler::tree(const node* nd, size_t indent) {
 
     str = STR('\n') + string_t(indent, STR(' ')) + str;
     if (nd->is_list()) {
-        for (node* item : *nd->obj.list) {
+        for (const node* item : *nd->obj.list) {
             str += tree(item, indent);
         }
     } else if (nd->is_expr()) {
