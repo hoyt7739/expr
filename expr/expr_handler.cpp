@@ -72,7 +72,8 @@ string_t handler::tree(size_t indent) const {
 }
 
 variant handler::calc(const calc_assist& assist) const {
-    return calc(m_root, assist);
+    variant res = calc(m_root, assist);
+    return res.is_complex() && 0 == res.complex->imag() ? res.complex->real() : res;
 }
 
 char_t handler::get_char(bool skip_space) {
@@ -251,11 +252,8 @@ node* handler::parse_unary() {
         if (try_match(STR("csc"))) {
             return make_node(make_arithmetic(operater::ARCCSC));
         }
-        if (try_match(STR("mp"))) {
-            return make_node(make_arithmetic(operater::AMPLITUDE));
-        }
-        if (try_match(STR("ng"))) {
-            return make_node(make_arithmetic(operater::ANGLE));
+        if (try_match(STR("rg"))) {
+            return make_node(make_arithmetic(operater::PHASE));
         }
         if (try_match(STR("sec"))) {
             return make_node(make_arithmetic(operater::ARCSEC));
@@ -276,6 +274,9 @@ node* handler::parse_unary() {
         }
         if (try_match(STR("om"))) {
             return make_node(make_arithmetic(operater::COMPOSITE));
+        }
+        if (try_match(STR("onj"))) {
+            return make_node(make_arithmetic(operater::CONJUGATE));
         }
         if (try_match(STR("os"))) {
             return make_node(make_arithmetic(operater::COS));
@@ -303,6 +304,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('g'):
+        if (try_match(STR("amma"))) {
+            return make_node(make_arithmetic(operater::GAMMA));
+        }
         if (try_match(STR("cd"))) {
             return make_node(make_statistic(operater::GCD));
         }
@@ -322,6 +326,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('i'):
+        if (try_match(STR("mag"))) {
+            return make_node(make_arithmetic(operater::IMAGINARY));
+        }
         if (try_match(STR("nte1"))) {
             return make_node(make_invocation(operater::INTEGRATE));
         }
@@ -390,6 +397,9 @@ node* handler::parse_unary() {
     case STR('r'):
         if (try_match(STR("ange"))) {
             return make_node(make_statistic(operater::RANGE));
+        }
+        if (try_match(STR("eal"))) {
+            return make_node(make_arithmetic(operater::REAL));
         }
         if (try_match(STR("int"))) {
             return make_node(make_arithmetic(operater::RINT));

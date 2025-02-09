@@ -59,13 +59,18 @@ struct operater {
         DIVIDE,             // 2 // 4 // /
         MOD,                // 2 // 4 // %
         NEGATIVE,           // 1 // 3 // -
-        ABS,                // 1 // 1 // abs
         CEIL,               // 1 // 1 // ceil
         FLOOR,              // 1 // 1 // floor
         TRUNC,              // 1 // 1 // trunc
         ROUND,              // 1 // 1 // round
         RINT,               // 1 // 1 // rint
+        ABS,                // 1 // 1 // abs
+        PHASE,              // 1 // 1 // arg
+        REAL,               // 1 // 1 // real
+        IMAGINARY,          // 1 // 1 // imag
+        CONJUGATE,          // 1 // 1 // conj
         FACTORIAL,          // 1 // 2 // ~!    // postpose // 1
+        GAMMA,              // 1 // 1 // gamma
         PERMUTE,            // 2 // 6 // pm
         COMBINE,            // 2 // 6 // cb
         POW,                // 2 // 2 // ^
@@ -76,6 +81,7 @@ struct operater {
         SQRT,               // 1 // 1 // √     // alias rt
         ROOT,               // 2 // 2 // √     // alias rt
         HYPOT,              // 2 // 6 // ⊿     // alias hp
+        VECTOR,             // 2 // 6 // ∠     // alias vec
         DEG,                // 1 // 1 // °     // postpose // 1
         TODEG,              // 1 // 1 // todeg
         TORAD,              // 1 // 1 // torad
@@ -91,9 +97,6 @@ struct operater {
         ARCSEC,             // 1 // 1 // asec
         CSC,                // 1 // 1 // csc
         ARCCSC,             // 1 // 1 // acsc
-        VECTOR,             // 2 // 6 // ∠     // alias vec
-        AMPLITUDE,          // 1 // 1 // amp
-        ANGLE,              // 1 // 1 // ang
         PRIME,              // 1 // 1 // pri
         COMPOSITE,          // 1 // 1 // com
         NTH_PRIME,          // 1 // 1 // npri

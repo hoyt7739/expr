@@ -22,8 +22,12 @@ const real_t CONST_PI   = 3.1415926535897932384626433832795;
 const real_t CONST_E    = 2.7182818284590452353602874713527;
 const real_t EPSILON    = 1.0e-9;
 
+inline bool approach_to(real_t left, real_t right) {
+    return fabs(left - right) < EPSILON;
+}
+
 inline bool is_zahlen(real_t value) {
-    return fabs(value - round(value)) < EPSILON;
+    return approach_to(value, round(value));
 }
 
 inline real_t to_real(const string_t& str) {
@@ -195,8 +199,27 @@ struct variant {
             return boolean ? STR("true") : STR("false");
         case REAL:
             return expr::to_string(real);
-        case COMPLEX:
-            return expr::to_string(complex->real()) + STR('+') + expr::to_string(complex->imag()) + STR('i');
+        case COMPLEX: {
+            real_t re = complex->real();
+            real_t im = complex->imag();
+            if (approach_to(im, 0)) {
+                return expr::to_string(re);
+            }
+
+            string_t im_str;
+            if (approach_to(im, 1)) {
+                im_str = STR('i');
+            } else if (approach_to(im, -1)) {
+                im_str = STR("-i");
+            } else {
+                im_str = expr::to_string(im) + STR('i');
+            }
+
+            if (approach_to(re, 0)) {
+                return im_str;
+            }
+            return expr::to_string(re) + (im < 0 ? im_str : STR('+') + im_str);
+        }
         case STRING:
             return *string;
         }
