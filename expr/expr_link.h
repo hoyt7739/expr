@@ -32,7 +32,7 @@ namespace expr {
 operater make_logic(operater::logic_operater logic);
 operater make_compare(operater::compare_operater compare);
 operater make_arithmetic(operater::arithmetic_operater arithmetic);
-operater make_statistic(operater::statistic_operater statistic);
+operater make_evaluation(operater::evaluation_operater evaluation);
 operater make_invocation(operater::invocation_operater invocation);
 operater make_function(const string_t& function);
 object make_boolean(bool boolean);

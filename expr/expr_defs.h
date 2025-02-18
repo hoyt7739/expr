@@ -39,7 +39,7 @@ struct operater {
         LOGIC,
         COMPARE,
         ARITHMETIC,
-        STATISTIC,
+        EVALUATION,
         INVOCATION,
         FUNCTION
     };
@@ -127,8 +127,8 @@ struct operater {
         NTH_COMPOSITE       // 1 // 1 // ncom
     };
 
-    // extradefs(expr::operater::statistic_operater)
-    enum statistic_operater {
+    // extradefs(expr::operater::evaluation_operater)
+    enum evaluation_operater {
         COUNT,              // 1 // 1 // cnt   // cnt(<sequence>)
         UNIQUE,             // 1 // 1 // uni
         TOTAL,              // 1 // 1 // tot
@@ -144,7 +144,12 @@ struct operater {
         MIN,                // 1 // 1 // min
         RANGE,              // 1 // 1 // range
         GCD,                // 1 // 1 // gcd
-        LCM                 // 1 // 1 // lcm
+        LCM,                // 1 // 1 // lcm
+        DFT,                // 1 // 1 // dft
+        IDFT,               // 1 // 1 // idft
+        FFT,                // 1 // 1 // fft
+        IFFT,               // 1 // 1 // ifft
+        ZT                  // 1 // 1 // zt
     };
 
     // extradefs(expr::operater::invocation_operater)
@@ -170,7 +175,7 @@ struct operater {
         logic_operater      logic;
         compare_operater    compare;
         arithmetic_operater arithmetic;
-        statistic_operater  statistic;
+        evaluation_operater evaluation;
         invocation_operater invocation;
         string_t*           function;
     };
@@ -319,8 +324,8 @@ struct node {
         return is_expr() && operater::ARITHMETIC == expr.oper.type;
     }
 
-    bool is_statistic() const {
-        return is_expr() && operater::STATISTIC == expr.oper.type;
+    bool is_evaluation() const {
+        return is_expr() && operater::EVALUATION == expr.oper.type;
     }
 
     bool is_invocation() const {
@@ -344,7 +349,7 @@ struct node {
     }
 
     bool is_eval_expr() const {
-        return is_statistic() || is_invocation() || is_function();
+        return is_evaluation() || is_invocation() || is_function();
     }
 
     bool is_value_expr() const {

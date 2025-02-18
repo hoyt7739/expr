@@ -170,7 +170,7 @@ variant operate(const variant& left, const operater& oper, const variant& right)
             break;
         }
         break;
-    case operater::STATISTIC:
+    case operater::EVALUATION:
         if (variant::SEQUENCE == right.type) {
             return operate(oper, *right.sequence);
         }
@@ -442,14 +442,15 @@ variant operate(const string_t& left, const operater& oper, const string_t& righ
 }
 
 variant operate(const operater& oper, const sequence_t& right) {
-    if (operater::STATISTIC == oper.type) {
+    if (operater::EVALUATION == oper.type) {
         const sequence_t& sequence = (1 == right.size() && right[0].is_sequence() ? *right[0].sequence : right);
         size_t size = sequence.size();
-        switch (oper.statistic) {
+        switch (oper.evaluation) {
         case operater::COUNT:
             return size;
         case operater::UNIQUE: {
             sequence_t res;
+            res.reserve(size);
             std::unordered_set<variant> seen;
             for (const variant& item : sequence) {
                 if (seen.end() == seen.find(item)) {
@@ -457,6 +458,91 @@ variant operate(const operater& oper, const sequence_t& right) {
                     seen.insert(item);
                 }
             }
+            return res;
+        }
+        case operater::DFT:
+        case operater::IDFT: {
+            sequence_t res;
+            res.reserve(size);
+            real_t a = (operater::IDFT == oper.evaluation ? 2 : -2) * CONST_PI / size;
+            for (size_t m = 0; m < size; ++m) {
+                complex_t sum;
+                for (size_t n = 0; n < size; ++n) {
+                    real_t ang = a * m * n;
+                    sum += sequence[n].to_complex() * complex_t(cos(ang), sin(ang));
+                }
+                if (operater::IDFT == oper.evaluation) {
+                    sum /= real_t(size);
+                }
+                res.emplace_back(std::move(sum));
+            }
+            return res;
+        }
+        case operater::FFT:
+        case operater::IFFT: {
+            size = static_cast<size_t>(pow(2, ceil(log2(size))));
+            sequence_t res(size);
+            std::transform(sequence.begin(), sequence.end(), res.begin(), [](const variant& var) { return var.to_complex(); });
+            std::fill(res.begin() + sequence.size(), res.end(), complex_t());
+            for (size_t m = 1, n = 0; m < size; ++m) {
+                for (size_t p = size >> 1; (n ^= p) < p; p >>= 1);
+                if (m < n) {
+                    std::swap(res[m], res[n]);
+                }
+            }
+
+            real_t a = (operater::FFT == oper.evaluation ? -2 : 2) * CONST_PI;
+            for (size_t len = 2; len <= size; len <<= 1) {
+                size_t mid = len >> 1;
+                real_t ang = a / len;
+                complex_t unit(cos(ang), sin(ang));
+                for (size_t m = 0; m < size; m += len) {
+                    complex_t w(1);
+                    for (size_t n = m; n < m + mid; ++n) {
+                        complex_t p = *res[n].complex;
+                        complex_t q = *res[n + mid].complex * w;
+                        *res[n].complex = p + q;
+                        *res[n + mid].complex = p - q;
+                        w *= unit;
+                    }
+                }
+            }
+
+            if (operater::IFFT == oper.evaluation) {
+                for (variant& var : res) {
+                    *var.complex /= real_t(size);
+                }
+            }
+
+            return res;
+        }
+        case operater::ZT: {
+            if (size < 2 || !sequence[0].is_sequence()) {
+                return variant();
+            }
+
+            const sequence_t& samples = *sequence[0].sequence;
+            if (samples.empty()) {
+                return variant();
+            }
+
+            auto begin = sequence.begin() + 1;
+            auto end = sequence.end();
+            if (begin->is_sequence()) {
+                end = begin->sequence->end();
+                begin = begin->sequence->begin();
+            }
+
+            sequence_t res;
+            res.reserve(end - begin);
+            for (; end != begin; ++begin) {
+                complex_t sum;
+                for (size_t n = 0; n < samples.size(); ++n) {
+                    sum += samples[n].to_complex() * pow(begin->to_complex(), -real_t(n));
+                }
+                res.emplace_back(std::move(sum));
+            }
+
             return res;
         }
         }
@@ -467,18 +553,18 @@ variant operate(const operater& oper, const sequence_t& right) {
 
         std::vector<real_t> values(size);
         std::transform(sequence.begin(), sequence.end(), values.begin(), [](const variant& var) { return var.to_real(); });
-        switch (oper.statistic) {
+        switch (oper.evaluation) {
         case operater::TOTAL:
         case operater::MEAN:
         case operater::VARIANCE:
         case operater::DEVIATION: {
             real_t total = std::accumulate(values.begin(), values.end(), real_t(0));
-            if (operater::TOTAL == oper.statistic) {
+            if (operater::TOTAL == oper.evaluation) {
                 return total;
             }
 
             real_t mean = total / size;
-            if (operater::MEAN == oper.statistic) {
+            if (operater::MEAN == oper.evaluation) {
                 return mean;
             }
 
@@ -486,7 +572,7 @@ variant operate(const operater& oper, const sequence_t& right) {
                 real_t diff = value - mean;
                 return acc + diff * diff;
             }) / size;
-            if (operater::VARIANCE == oper.statistic) {
+            if (operater::VARIANCE == oper.evaluation) {
                 return variance;
             }
 
@@ -548,7 +634,7 @@ variant operate(const operater& oper, const sequence_t& right) {
             size_t res = static_cast<size_t>(fabs(values[0]));
             for (size_t index = 1; index < size; ++index) {
                 size_t value = static_cast<size_t>(fabs(values[index]));
-                if (operater::GCD == oper.statistic) {
+                if (operater::GCD == oper.evaluation) {
                     res = gcd(res, value);
                     if (1 == res) {
                         break;

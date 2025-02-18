@@ -59,13 +59,13 @@ operater make_arithmetic(operater::arithmetic_operater arithmetic) {
     return oper;
 }
 
-operater make_statistic(operater::statistic_operater statistic) {
+operater make_evaluation(operater::evaluation_operater evaluation) {
     operater oper;
-    oper.type = operater::STATISTIC;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_STATISTIC_OPERATER.number(statistic, operater::KIND));
-    oper.priority = EXTRA_STATISTIC_OPERATER.number(statistic, operater::PRIORITY);
+    oper.type = operater::EVALUATION;
+    oper.kind = static_cast<operater::operater_kind>(EXTRA_EVALUATION_OPERATER.number(evaluation, operater::KIND));
+    oper.priority = EXTRA_EVALUATION_OPERATER.number(evaluation, operater::PRIORITY);
     oper.postpose = false;
-    oper.statistic = statistic;
+    oper.evaluation = evaluation;
     return oper;
 }
 
@@ -307,7 +307,7 @@ bool test_link(const node* parent, node::node_side side, const node* child, defi
     case operater::COMPARE:
     case operater::ARITHMETIC:
         return child->is_value_result();
-    case operater::STATISTIC:
+    case operater::EVALUATION:
     case operater::INVOCATION:
         return child->is_array();
     case operater::FUNCTION:

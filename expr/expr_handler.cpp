@@ -294,7 +294,7 @@ node* handler::parse_unary() {
             return make_node(make_arithmetic(operater::CEIL));
         }
         if (try_match(STR("nt"))) {
-            return make_node(make_statistic(operater::COUNT));
+            return make_node(make_evaluation(operater::COUNT));
         }
         if (try_match(STR("om"))) {
             return make_node(make_arithmetic(operater::COMPOSITE));
@@ -314,7 +314,10 @@ node* handler::parse_unary() {
         break;
     case STR('d'):
         if (try_match(STR("ev"))) {
-            return make_node(make_statistic(operater::DEVIATION));
+            return make_node(make_evaluation(operater::DEVIATION));
+        }
+        if (try_match(STR("ft"))) {
+            return make_node(make_evaluation(operater::DFT));
         }
         break;
     case STR('e'):
@@ -323,6 +326,9 @@ node* handler::parse_unary() {
         }
         break;
     case STR('f'):
+        if (try_match(STR("ft"))) {
+            return make_node(make_evaluation(operater::FFT));
+        }
         if (try_match(STR("loor"))) {
             return make_node(make_arithmetic(operater::FLOOR));
         }
@@ -332,13 +338,13 @@ node* handler::parse_unary() {
             return make_node(make_arithmetic(operater::GAMMA));
         }
         if (try_match(STR("cd"))) {
-            return make_node(make_statistic(operater::GCD));
+            return make_node(make_evaluation(operater::GCD));
         }
         if (try_match(STR("en"))) {
             return make_node(make_invocation(operater::GENERATE));
         }
         if (try_match(STR("mean"))) {
-            return make_node(make_statistic(operater::GEOMETRIC_MEAN));
+            return make_node(make_evaluation(operater::GEOMETRIC_MEAN));
         }
         break;
     case STR('h'):
@@ -346,10 +352,16 @@ node* handler::parse_unary() {
             return make_node(make_invocation(operater::HAS));
         }
         if (try_match(STR("mean"))) {
-            return make_node(make_statistic(operater::HARMONIC_MEAN));
+            return make_node(make_evaluation(operater::HARMONIC_MEAN));
         }
         break;
     case STR('i'):
+        if (try_match(STR("dft"))) {
+            return make_node(make_evaluation(operater::IDFT));
+        }
+        if (try_match(STR("fft"))) {
+            return make_node(make_evaluation(operater::IFFT));
+        }
         if (try_match(STR("mag"))) {
             return make_node(make_arithmetic(operater::IMAGINARY));
         }
@@ -368,7 +380,7 @@ node* handler::parse_unary() {
         break;
     case STR('l'):
         if (try_match(STR("cm"))) {
-            return make_node(make_statistic(operater::LCM));
+            return make_node(make_evaluation(operater::LCM));
         }
         if (try_match(STR("g"))) {
             return make_node(make_arithmetic(operater::LG));
@@ -379,19 +391,19 @@ node* handler::parse_unary() {
         break;
     case STR('m'):
         if (try_match(STR("ax"))) {
-            return make_node(make_statistic(operater::MAX));
+            return make_node(make_evaluation(operater::MAX));
         }
         if (try_match(STR("ean"))) {
-            return make_node(make_statistic(operater::MEAN));
+            return make_node(make_evaluation(operater::MEAN));
         }
         if (try_match(STR("ed"))) {
-            return make_node(make_statistic(operater::MEDIAN));
+            return make_node(make_evaluation(operater::MEDIAN));
         }
         if (try_match(STR("in"))) {
-            return make_node(make_statistic(operater::MIN));
+            return make_node(make_evaluation(operater::MIN));
         }
         if (try_match(STR("ode"))) {
-            return make_node(make_statistic(operater::MODE));
+            return make_node(make_evaluation(operater::MODE));
         }
         break;
     case STR('n'):
@@ -415,12 +427,12 @@ node* handler::parse_unary() {
         break;
     case STR('q'):
         if (try_match(STR("mean"))) {
-            return make_node(make_statistic(operater::QUADRATIC_MEAN));
+            return make_node(make_evaluation(operater::QUADRATIC_MEAN));
         }
         break;
     case STR('r'):
         if (try_match(STR("ange"))) {
-            return make_node(make_statistic(operater::RANGE));
+            return make_node(make_evaluation(operater::RANGE));
         }
         if (try_match(STR("eal"))) {
             return make_node(make_arithmetic(operater::REAL));
@@ -460,7 +472,7 @@ node* handler::parse_unary() {
             return make_node(make_arithmetic(operater::TORAD));
         }
         if (try_match(STR("ot"))) {
-            return make_node(make_statistic(operater::TOTAL));
+            return make_node(make_evaluation(operater::TOTAL));
         }
         if (try_match(STR("rans"))) {
             return make_node(make_invocation(operater::TRANSFORM));
@@ -471,12 +483,17 @@ node* handler::parse_unary() {
         break;
     case STR('u'):
         if (try_match(STR("ni"))) {
-            return make_node(make_statistic(operater::UNIQUE));
+            return make_node(make_evaluation(operater::UNIQUE));
         }
         break;
     case STR('v'):
         if (try_match(STR("ar"))) {
-            return make_node(make_statistic(operater::VARIANCE));
+            return make_node(make_evaluation(operater::VARIANCE));
+        }
+        break;
+    case STR('z'):
+        if (try_match(STR("t"))) {
+            return make_node(make_evaluation(operater::ZT));
         }
         break;
     case STR('~'):
@@ -848,8 +865,8 @@ string_t handler::text(const node* nd) {
             return EXTRA_COMPARE_OPERATER.text(nd->expr.oper.compare, operater::TEXT);
         case operater::ARITHMETIC:
             return EXTRA_ARITHMETIC_OPERATER.text(nd->expr.oper.arithmetic, operater::TEXT);
-        case operater::STATISTIC:
-            return EXTRA_STATISTIC_OPERATER.text(nd->expr.oper.statistic, operater::TEXT);
+        case operater::EVALUATION:
+            return EXTRA_EVALUATION_OPERATER.text(nd->expr.oper.evaluation, operater::TEXT);
         case operater::INVOCATION:
             return EXTRA_INVOCATION_OPERATER.text(nd->expr.oper.invocation, operater::TEXT);
         case operater::FUNCTION:
