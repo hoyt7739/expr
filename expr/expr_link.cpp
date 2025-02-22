@@ -24,58 +24,18 @@
 
 #include "expr_link.h"
 
-#define EXTRA_EXPR_DEFS
+#define EXTRA_EXPR_NODE
 #include "extradefs.h"
 
 namespace expr {
 
-operater make_logic(operater::logic_operater logic) {
+operater make_operater(operater::operater_code code) {
     operater oper;
-    oper.type = operater::LOGIC;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_LOGIC_OPERATER.number(logic, operater::KIND));
-    oper.priority = EXTRA_LOGIC_OPERATER.number(logic, operater::PRIORITY);
-    oper.postpose = false;
-    oper.logic = logic;
-    return oper;
-}
-
-operater make_compare(operater::compare_operater compare) {
-    operater oper;
-    oper.type = operater::COMPARE;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_COMPARE_OPERATER.number(compare, operater::KIND));
-    oper.priority = EXTRA_COMPARE_OPERATER.number(compare, operater::PRIORITY);
-    oper.postpose = false;
-    oper.compare = compare;
-    return oper;
-}
-
-operater make_arithmetic(operater::arithmetic_operater arithmetic) {
-    operater oper;
-    oper.type = operater::ARITHMETIC;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::KIND));
-    oper.priority = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::PRIORITY);
-    oper.postpose = EXTRA_ARITHMETIC_OPERATER.number(arithmetic, operater::POSTPOSE);
-    oper.arithmetic = arithmetic;
-    return oper;
-}
-
-operater make_evaluation(operater::evaluation_operater evaluation) {
-    operater oper;
-    oper.type = operater::EVALUATION;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_EVALUATION_OPERATER.number(evaluation, operater::KIND));
-    oper.priority = EXTRA_EVALUATION_OPERATER.number(evaluation, operater::PRIORITY);
-    oper.postpose = false;
-    oper.evaluation = evaluation;
-    return oper;
-}
-
-operater make_invocation(operater::invocation_operater invocation) {
-    operater oper;
-    oper.type = operater::INVOCATION;
-    oper.kind = static_cast<operater::operater_kind>(EXTRA_INVOCATION_OPERATER.number(invocation, operater::KIND));
-    oper.priority = EXTRA_INVOCATION_OPERATER.number(invocation, operater::PRIORITY);
-    oper.postpose = false;
-    oper.invocation = invocation;
+    oper.type = static_cast<decltype(oper.type)>(EXTRA_OPERATER_CODE.integer(code, operater::TYPE));
+    oper.kind = static_cast<decltype(oper.kind)>(EXTRA_OPERATER_CODE.integer(code, operater::KIND));
+    oper.priority = EXTRA_OPERATER_CODE.integer(code, operater::PRIORITY);
+    oper.postpose = EXTRA_OPERATER_CODE.integer(code, operater::POSTPOSE);
+    oper.code = code;
     return oper;
 }
 
@@ -103,10 +63,10 @@ object make_real(real_t real) {
     return obj;
 }
 
-object make_complex(real_t real, real_t imag) {
+object make_imaginary(real_t imaginary) {
     object obj;
-    obj.type = object::COMPLEX;
-    obj.complex = new complex_t(real, imag);
+    obj.type = object::IMAGINARY;
+    obj.imaginary = imaginary;
     return obj;
 }
 
@@ -304,11 +264,12 @@ bool test_link(const node* parent, node::node_side side, const node* child, defi
     switch (parent->expr.oper.type) {
     case operater::LOGIC:
         return child->is_boolean_result() || child->is_function();
-    case operater::COMPARE:
+    case operater::RELATION:
     case operater::ARITHMETIC:
         return child->is_value_result();
     case operater::EVALUATION:
     case operater::INVOCATION:
+    case operater::LARGESCALE:
         return child->is_array();
     case operater::FUNCTION:
         return child->is_array() && dm && dm->end() != dm->find(*parent->expr.oper.function);

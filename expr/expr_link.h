@@ -25,19 +25,15 @@
 #ifndef EXPR_LINK_H
 #define EXPR_LINK_H
 
-#include "expr_defs.h"
+#include "expr_node.h"
 
 namespace expr {
 
-operater make_logic(operater::logic_operater logic);
-operater make_compare(operater::compare_operater compare);
-operater make_arithmetic(operater::arithmetic_operater arithmetic);
-operater make_evaluation(operater::evaluation_operater evaluation);
-operater make_invocation(operater::invocation_operater invocation);
+operater make_operater(operater::operater_code code);
 operater make_function(const string_t& function);
 object make_boolean(bool boolean);
 object make_real(real_t real);
-object make_complex(real_t real, real_t imag);
+object make_imaginary(real_t imaginary);
 object make_string(const string_t& string);
 object make_param(const string_t& param);
 object make_variable(char_t variable);

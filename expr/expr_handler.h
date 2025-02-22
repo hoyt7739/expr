@@ -26,7 +26,7 @@
 #define EXPR_HANDLER_H
 
 #include <functional>
-#include "expr_defs.h"
+#include "expr_node.h"
 
 namespace expr {
 
@@ -53,6 +53,7 @@ public:
 public:
     bool is_valid(size_t* failed_pos = nullptr) const;
     string_t expr() const;
+    string_t latex() const;
     string_t tree(size_t indent = 0) const;
     variant calc(const calc_assist& assist = calc_assist()) const;
 
@@ -65,8 +66,7 @@ private:
 
     node* parse_defines();
     node* parse_atom();
-    node* parse_unary();
-    node* parse_binary();
+    node* parse_operater(operater::operater_kind kind);
     node* parse_function();
     node* parse_object();
     node* parse_constant();
@@ -78,16 +78,17 @@ private:
 
     static string_t text(const node* nd);
     static string_t expr(const node* nd);
+    static string_t latex(const node* nd);
     static string_t tree(const node* nd, size_t indent);
 
     static variant calc(const node* nd, const calc_assist& assist);
     static variant calc_object(const node* nd, const calc_assist& assist);
     static variant calc_function(const node* nd, const calc_assist& assist);
-    static variant calc_invocation(const node* nd, const calc_assist& assist);
+    static variant calc_calls(const node* nd, const calc_assist& assist);
     static variant calc_generate(const node_array& wrap, const calc_assist& assist);
-    static variant calc_sequence(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist);
+    static variant calc_sequence(operater::operater_code code, const node_array& wrap, const calc_assist& assist);
     static bound_t calc_bound(const node* lower_nd, const node* upper_nd, const calc_assist& assist, bool to_zahlen = false);
-    static variant calc_cumulate(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist);
+    static variant calc_cumulate(operater::operater_code code, const node_array& wrap, const calc_assist& assist);
     static variant calc_integrate(const node_array& wrap, const calc_assist& assist);
     static variant calc_integrate2(const node_array& wrap, const calc_assist& assist);
     static variant calc_integrate3(const node_array& wrap, const calc_assist& assist);
