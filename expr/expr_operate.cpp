@@ -23,12 +23,9 @@
 */
 
 #include "expr_operate.h"
-#include <map>
 #include <unordered_set>
-#include <algorithm>
 #include <numeric>
 #include <regex>
-#include "expr_link.h"
 
 namespace expr {
 
@@ -87,7 +84,7 @@ private:
         }
 
         size = std::max(size + size / 2, MIN_BITMAP_SIZE);
-        s_bitmap = std::vector<bool>(size, true);
+        s_bitmap.resize(size, true);
         s_bitmap[0] = s_bitmap[1] = false;
 
         size_t upper = static_cast<size_t>(sqrt(size));
@@ -124,7 +121,7 @@ variant operate(const variant& left, const operater& oper, const variant& right)
             break;
         }
         break;
-    case operater::COMPARE:
+    case operater::RELATION:
     case operater::ARITHMETIC:
         switch (right.type) {
         case variant::REAL:
@@ -182,7 +179,7 @@ variant operate(const variant& left, const operater& oper, const variant& right)
 
 variant operate(bool left, const operater& oper, bool right) {
     if (operater::LOGIC == oper.type) {
-        switch (oper.logic) {
+        switch (oper.code) {
         case operater::AND:
             return left && right;
         case operater::OR:
@@ -197,8 +194,8 @@ variant operate(bool left, const operater& oper, bool right) {
 
 variant operate(real_t left, const operater& oper, real_t right) {
     switch (oper.type) {
-    case operater::COMPARE:
-        switch (oper.compare) {
+    case operater::RELATION:
+        switch (oper.code) {
         case operater::LESS:
             return left < right;
         case operater::LESS_EQUAL:
@@ -217,7 +214,7 @@ variant operate(real_t left, const operater& oper, real_t right) {
         break;
     case operater::ARITHMETIC: {
         auto extend_complex = [left, &oper, right] { return operate(complex_t(left), oper, complex_t(right)); };
-        switch (oper.arithmetic) {
+        switch (oper.code) {
         case operater::PLUS:
             return left + right;
         case operater::MINUS:
@@ -226,7 +223,7 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return left * right;
         case operater::DIVIDE:
             return 0 != right ? left / right : (0 != left ? copysign(INFINITY, left) : variant());
-        case operater::MOD:
+        case operater::MODULUS:
             return 0 != right ? fmod(left, right) : variant();
         case operater::NEGATIVE:
             return -right;
@@ -243,7 +240,7 @@ variant operate(real_t left, const operater& oper, real_t right) {
         case operater::ABS:
             return fabs(right);
         case operater::PHASE:
-            return 0 <= right ? real_t(0) : CONST_PI;
+            return 0 <= right ? real_t(0) : REAL_PI;
         case operater::REAL:
         case operater::CONJUGATE:
             return right;
@@ -260,7 +257,7 @@ variant operate(real_t left, const operater& oper, real_t right) {
                     std::swap(left, right);
                 }
                 real_t res = tgamma(left + 1) / tgamma(left - right + 1);
-                return operater::PERMUTE == oper.arithmetic ? res : res / tgamma(right + 1);
+                return operater::PERMUTE == oper.code ? res : res / tgamma(right + 1);
             }
             return variant();
         case operater::POW:
@@ -284,14 +281,14 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return 0 != left ? (0 <= right ? pow(right, 1 / left) : extend_complex()) : variant();
         case operater::HYPOT:
             return hypot(left, right);
-        case operater::VECTOR:
+        case operater::POLAR:
             return std::polar(left, right);
         case operater::DEG:
-            return left * CONST_PI / 180;
+            return left * REAL_PI / 180;
         case operater::TODEG:
-            return right * 180 / CONST_PI;
+            return right * 180 / REAL_PI;
         case operater::TORAD:
-            return right * CONST_PI / 180;
+            return right * REAL_PI / 180;
         case operater::SIN:
             return sin(right);
         case operater::ARCSIN:
@@ -301,19 +298,19 @@ variant operate(real_t left, const operater& oper, real_t right) {
         case operater::ARCCOS:
             return -1 <= right && right <= 1 ? acos(right) : extend_complex();
         case operater::TAN:
-            return !is_zahlen(right / CONST_PI - 0.5) ? tan(right) : INFINITY;
+            return !is_zahlen(right / REAL_PI - 0.5) ? tan(right) : INFINITY;
         case operater::ARCTAN:
             return atan(right);
         case operater::COT:
-            return !is_zahlen(right / CONST_PI) ? cos(right) / sin(right) : INFINITY;
+            return !is_zahlen(right / REAL_PI) ? cos(right) / sin(right) : INFINITY;
         case operater::ARCCOT:
-            return 0 != right ? atan(1 / right) : CONST_PI / 2;
+            return 0 != right ? atan(1 / right) : REAL_PI / 2;
         case operater::SEC:
-            return !is_zahlen(right / CONST_PI - 0.5) ? 1 / cos(right) : INFINITY;
+            return !is_zahlen(right / REAL_PI - 0.5) ? 1 / cos(right) : INFINITY;
         case operater::ARCSEC:
             return right <= -1 || 1 <= right ? acos(1 / right) : extend_complex();
         case operater::CSC:
-            return !is_zahlen(right / CONST_PI) ? 1 / sin(right) : INFINITY;
+            return !is_zahlen(right / REAL_PI) ? 1 / sin(right) : INFINITY;
         case operater::ARCCSC:
             return right <= -1 || 1 <= right ? asin(1 / right) : extend_complex();
         case operater::PRIME:
@@ -324,6 +321,8 @@ variant operate(real_t left, const operater& oper, real_t right) {
             return 0 <= right ? prime_composite::nth_prime(static_cast<size_t>(right)) : variant();
         case operater::NTH_COMPOSITE:
             return 0 <= right ? prime_composite::nth_composite(static_cast<size_t>(right)) : variant();
+        case operater::RAND:
+            return 0 != right ? fmod(rand(), right) : real_t(rand());
         }
         break;
     }
@@ -334,8 +333,8 @@ variant operate(real_t left, const operater& oper, real_t right) {
 
 variant operate(const complex_t& left, const operater& oper, const complex_t& right) {
     switch (oper.type) {
-    case operater::COMPARE:
-        switch (oper.compare) {
+    case operater::RELATION:
+        switch (oper.code) {
         case operater::EQUAL:
             return left == right;
         case operater::APPROACH:
@@ -345,7 +344,7 @@ variant operate(const complex_t& left, const operater& oper, const complex_t& ri
         }
         break;
     case operater::ARITHMETIC:
-        switch (oper.arithmetic) {
+        switch (oper.code) {
         case operater::PLUS:
             return left + right;
         case operater::MINUS:
@@ -413,8 +412,8 @@ variant operate(const complex_t& left, const operater& oper, const complex_t& ri
 
 variant operate(const string_t& left, const operater& oper, const string_t& right) {
     switch (oper.type) {
-    case operater::COMPARE:
-        switch (oper.compare) {
+    case operater::RELATION:
+        switch (oper.code) {
         case operater::LESS:
             return left < right;
         case operater::LESS_EQUAL:
@@ -432,7 +431,7 @@ variant operate(const string_t& left, const operater& oper, const string_t& righ
         }
         break;
     case operater::ARITHMETIC:
-        if (operater::PLUS == oper.arithmetic) {
+        if (operater::PLUS == oper.code) {
             return left + right;
         }
         break;
@@ -445,7 +444,7 @@ variant operate(const operater& oper, const sequence_t& right) {
     if (operater::EVALUATION == oper.type) {
         const sequence_t& sequence = (1 == right.size() && right[0].is_sequence() ? *right[0].sequence : right);
         size_t size = sequence.size();
-        switch (oper.evaluation) {
+        switch (oper.code) {
         case operater::COUNT:
             return size;
         case operater::UNIQUE: {
@@ -453,9 +452,8 @@ variant operate(const operater& oper, const sequence_t& right) {
             res.reserve(size);
             std::unordered_set<variant> seen;
             for (const variant& item : sequence) {
-                if (seen.end() == seen.find(item)) {
+                if (seen.insert(item).second) {
                     res.push_back(item);
-                    seen.insert(item);
                 }
             }
             return res;
@@ -464,14 +462,14 @@ variant operate(const operater& oper, const sequence_t& right) {
         case operater::IDFT: {
             sequence_t res;
             res.reserve(size);
-            real_t a = (operater::IDFT == oper.evaluation ? 2 : -2) * CONST_PI / size;
+            real_t a = (operater::IDFT == oper.code ? 2 : -2) * REAL_PI / size;
             for (size_t m = 0; m < size; ++m) {
                 complex_t sum;
                 for (size_t n = 0; n < size; ++n) {
                     real_t ang = a * m * n;
                     sum += sequence[n].to_complex() * complex_t(cos(ang), sin(ang));
                 }
-                if (operater::IDFT == oper.evaluation) {
+                if (operater::IDFT == oper.code) {
                     sum /= real_t(size);
                 }
                 res.emplace_back(std::move(sum));
@@ -491,7 +489,7 @@ variant operate(const operater& oper, const sequence_t& right) {
                 }
             }
 
-            real_t a = (operater::FFT == oper.evaluation ? -2 : 2) * CONST_PI;
+            real_t a = (operater::FFT == oper.code ? -2 : 2) * REAL_PI;
             for (size_t len = 2; len <= size; len <<= 1) {
                 size_t mid = len >> 1;
                 real_t ang = a / len;
@@ -508,7 +506,7 @@ variant operate(const operater& oper, const sequence_t& right) {
                 }
             }
 
-            if (operater::IFFT == oper.evaluation) {
+            if (operater::IFFT == oper.code) {
                 for (variant& var : res) {
                     *var.complex /= real_t(size);
                 }
@@ -547,24 +545,46 @@ variant operate(const operater& oper, const sequence_t& right) {
         }
         }
 
-        if (!size) {
+        if (0 == size) {
             return variant();
         }
 
         std::vector<real_t> values(size);
         std::transform(sequence.begin(), sequence.end(), values.begin(), [](const variant& var) { return var.to_real(); });
-        switch (oper.evaluation) {
+        switch (oper.code) {
+        case operater::MIN:
+            return *std::min_element(values.begin(), values.end());
+        case operater::MAX:
+            return *std::max_element(values.begin(), values.end());
+        case operater::RANGE:
+        case operater::NORM: {
+            auto pair = std::minmax_element(values.begin(), values.end());
+            real_t range = *pair.second - *pair.first;
+            if (operater::RANGE == oper.code) {
+                return range;
+            }
+
+            if (0 == range) {
+                return sequence_t(size, 0.5);
+            }
+
+            sequence_t res(size);
+            real_t min = *pair.first;
+            std::transform(values.begin(), values.end(), res.begin(), [min, range](real_t value) { return (value - min) / range; });
+            return res;
+        }
         case operater::TOTAL:
         case operater::MEAN:
         case operater::VARIANCE:
-        case operater::DEVIATION: {
+        case operater::DEVIATION:
+        case operater::ZSCORE_NORM: {
             real_t total = std::accumulate(values.begin(), values.end(), real_t(0));
-            if (operater::TOTAL == oper.evaluation) {
+            if (operater::TOTAL == oper.code) {
                 return total;
             }
 
             real_t mean = total / size;
-            if (operater::MEAN == oper.evaluation) {
+            if (operater::MEAN == oper.code) {
                 return mean;
             }
 
@@ -572,21 +592,33 @@ variant operate(const operater& oper, const sequence_t& right) {
                 real_t diff = value - mean;
                 return acc + diff * diff;
             }) / size;
-            if (operater::VARIANCE == oper.evaluation) {
+            if (operater::VARIANCE == oper.code) {
                 return variance;
             }
 
-            return sqrt(variance);
+            real_t stddev = sqrt(variance);
+            if (operater::DEVIATION == oper.code) {
+                return stddev;
+            }
+
+            if (0 == stddev) {
+                return sequence_t(size, 0);
+            }
+
+            sequence_t res(size);
+            std::transform(values.begin(), values.end(), res.begin(), [mean, stddev](real_t value) { return (value - mean) / stddev; });
+            return res;
         }
         case operater::GEOMETRIC_MEAN: {
             real_t total = std::accumulate(values.begin(), values.end(), real_t(1), std::multiplies<real_t>());
             return pow(total, real_t(1) / size);
         }
-        case operater::QUADRATIC_MEAN: {
+        case operater::QUADRATIC_MEAN:
+        case operater::HYPOT: {
             real_t total = std::accumulate(values.begin(), values.end(), real_t(0), [](real_t acc, real_t value) {
                 return acc + value * value;
             });
-            return sqrt(total / size);
+            return sqrt(operater::QUADRATIC_MEAN == oper.code ? total / size : total);
         }
         case operater::HARMONIC_MEAN: {
             real_t total = std::accumulate(values.begin(), values.end(), real_t(0), [](real_t acc, real_t value) {
@@ -610,12 +642,6 @@ variant operate(const operater& oper, const sequence_t& right) {
                 return c1.second < c2.second;
             })->first;
         }
-        case operater::MAX:
-            return *std::max_element(values.begin(), values.end());
-        case operater::MIN:
-            return *std::min_element(values.begin(), values.end());
-        case operater::RANGE:
-            return *std::max_element(values.begin(), values.end()) - *std::min_element(values.begin(), values.end());
         case operater::GCD:
         case operater::LCM: {
             auto gcd = [](size_t m, size_t n) {
@@ -628,13 +654,13 @@ variant operate(const operater& oper, const sequence_t& right) {
             };
 
             auto lcm = [&gcd](size_t m, size_t n) {
-                return m && n ? (m / gcd(m, n)) * n : size_t();
+                return m && n ? (m / gcd(m, n)) * n : 0;
             };
 
             size_t res = static_cast<size_t>(fabs(values[0]));
             for (size_t index = 1; index < size; ++index) {
                 size_t value = static_cast<size_t>(fabs(values[index]));
-                if (operater::GCD == oper.evaluation) {
+                if (operater::GCD == oper.code) {
                     res = gcd(res, value);
                     if (1 == res) {
                         break;

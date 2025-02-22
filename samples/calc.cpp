@@ -29,11 +29,13 @@ void handle(const expr::string_t& expr) {
     expr::handler hdl(expr);
     size_t failed_pos = 0;
     bool valid = hdl.is_valid(&failed_pos);
-    std::cout << "expr: " << expr::to_utf8(expr);
-    std::cout << "\nvalid: " << valid;
+    std::cout << "valid: " << valid;
+
     if (valid) {
-        std::cout << "\nresult: " << expr::to_utf8(hdl.calc().to_text());
-        std::cout << "\ntree: " << expr::to_utf8(hdl.tree(4)) << std::endl;
+        std::cout << "\nexpr: " << expr::to_utf8(hdl.expr());
+        std::cout << "\nlatex: " << expr::to_utf8(hdl.latex());
+        std::cout << "\ntree: " << expr::to_utf8(hdl.tree(4));
+        std::cout << "\nresult: " << expr::to_utf8(hdl.calc().to_text()) << std::endl;
     } else {
         std::cout << "\nfailed_pos: " << failed_pos << std::endl;
     }

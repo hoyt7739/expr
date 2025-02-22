@@ -25,7 +25,7 @@
 #ifndef EXPR_OPERATE_H
 #define EXPR_OPERATE_H
 
-#include "expr_defs.h"
+#include "expr_node.h"
 
 namespace expr {
 

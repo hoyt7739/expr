@@ -27,7 +27,7 @@
 #include "expr_link.h"
 #include "expr_operate.h"
 
-#define EXTRA_EXPR_DEFS
+#define EXTRA_EXPR_NODE
 #include "extradefs.h"
 
 namespace expr {
@@ -91,11 +91,21 @@ string_t handler::expr() const {
     return expr(m_root);
 }
 
+string_t handler::latex() const {
+    return latex(m_root);
+}
+
 string_t handler::tree(size_t indent) const {
     return tree(m_root, indent);
 }
 
 variant handler::calc(const calc_assist& assist) const {
+    static unsigned s = 0;
+    if (!s) {
+        s = (unsigned)time(nullptr);
+        srand(s);
+    }
+
     variant res = calc(m_root, assist);
     return res.is_complex() && 0 == res.complex->imag() ? res.complex->real() : res;
 }
@@ -121,6 +131,10 @@ char_t handler::peek_char() {
 }
 
 bool handler::try_match(const string_t& str) {
+    if (str.empty()) {
+        return false;
+    }
+
     size_t pos = m_pos;
     for (char_t ch : str) {
         if (get_char() != ch) {
@@ -148,7 +162,6 @@ node* handler::parse_defines() {
     }
 
     node* nd = parse_array(false);
-
     if (!try_match(STR("}")) || !nd || nd->obj.array->empty()) {
         delete nd;
         return nullptr;
@@ -182,30 +195,29 @@ node* handler::parse_atom() {
                     pending->super = nd;
                     pending = nd;
                 }
-
                 if (!try_match(STR(")"))) {
                     goto failed;
                 }
-
                 state = parse_state::SEGMENT_CLOSED;
             } else {
-                current = parse_unary();
+                current = parse_operater(operater::UNARY);
                 if (current) {
                     if (current->expr.oper.postpose) {
                         goto failed;
                     }
 
-                    bool is_eval = current->is_eval_expr();
+                    bool need_array =
+                        current->is_evaluation() || current->is_invocation() || current->is_largescale() || current->is_function();
+
                     if (!insert_node(root, semi, pending, current)) {
                         goto failed;
                     }
 
-                    if (is_eval) {
+                    if (need_array) {
                         pending = parse_array(true);
                         if (!pending) {
                             goto failed;
                         }
-
                         state = parse_state::SEGMENT_CLOSED;
                     }
                 } else {
@@ -213,7 +225,6 @@ node* handler::parse_atom() {
                     if (!pending) {
                         goto failed;
                     }
-
                     state = parse_state::SEGMENT_CLOSED;
                 }
             }
@@ -223,19 +234,17 @@ node* handler::parse_atom() {
                 if (!insert_node(root, semi, pending, current = nullptr)) {
                     goto failed;
                 }
-
                 return root;
             }
 
-            current = parse_binary();
+            current = parse_operater(operater::BINARY);
             if (current) {
                 if (!insert_node(root, semi, pending, current)) {
                     goto failed;
                 }
-
                 state = parse_state::SEGMENT_OPENING;
             } else {
-                current = parse_unary();
+                current = parse_operater(operater::UNARY);
                 if (!current || !current->expr.oper.postpose || !insert_node(root, semi, pending, current)) {
                     goto failed;
                 }
@@ -253,358 +262,16 @@ failed:
     return nullptr;
 }
 
-node* handler::parse_unary() {
-    char_t ch = get_char();
-    switch (ch) {
-    case STR('!'):
-        return make_node(make_logic(operater::NOT));
-    case STR('-'):
-        return make_node(make_arithmetic(operater::NEGATIVE));
-    case STR('a'):
-        if (try_match(STR("bs"))) {
-            return make_node(make_arithmetic(operater::ABS));
+node* handler::parse_operater(operater::operater_kind kind) {
+    for (auto iter = EXTRA_OPERATER_CODE.rbegin(); EXTRA_OPERATER_CODE.rend() != iter; ++iter) {
+        if (kind == iter->second.integer(operater::KIND)) {
+            if (try_match(iter->second.string(operater::NAME)) || try_match(iter->second.string(operater::ALIAS))) {
+                return make_node(make_operater(iter->first));
+            }
         }
-        if (try_match(STR("cc"))) {
-            return make_node(make_invocation(operater::ACCUMULATE));
-        }
-        if (try_match(STR("cos"))) {
-            return make_node(make_arithmetic(operater::ARCCOS));
-        }
-        if (try_match(STR("cot"))) {
-            return make_node(make_arithmetic(operater::ARCCOT));
-        }
-        if (try_match(STR("csc"))) {
-            return make_node(make_arithmetic(operater::ARCCSC));
-        }
-        if (try_match(STR("rg"))) {
-            return make_node(make_arithmetic(operater::PHASE));
-        }
-        if (try_match(STR("sec"))) {
-            return make_node(make_arithmetic(operater::ARCSEC));
-        }
-        if (try_match(STR("sin"))) {
-            return make_node(make_arithmetic(operater::ARCSIN));
-        }
-        if (try_match(STR("tan"))) {
-            return make_node(make_arithmetic(operater::ARCTAN));
-        }
-        break;
-    case STR('c'):
-        if (try_match(STR("eil"))) {
-            return make_node(make_arithmetic(operater::CEIL));
-        }
-        if (try_match(STR("nt"))) {
-            return make_node(make_evaluation(operater::COUNT));
-        }
-        if (try_match(STR("om"))) {
-            return make_node(make_arithmetic(operater::COMPOSITE));
-        }
-        if (try_match(STR("onj"))) {
-            return make_node(make_arithmetic(operater::CONJUGATE));
-        }
-        if (try_match(STR("os"))) {
-            return make_node(make_arithmetic(operater::COS));
-        }
-        if (try_match(STR("ot"))) {
-            return make_node(make_arithmetic(operater::COT));
-        }
-        if (try_match(STR("sc"))) {
-            return make_node(make_arithmetic(operater::CSC));
-        }
-        break;
-    case STR('d'):
-        if (try_match(STR("ev"))) {
-            return make_node(make_evaluation(operater::DEVIATION));
-        }
-        if (try_match(STR("ft"))) {
-            return make_node(make_evaluation(operater::DFT));
-        }
-        break;
-    case STR('e'):
-        if (try_match(STR("xp"))) {
-            return make_node(make_arithmetic(operater::EXP));
-        }
-        break;
-    case STR('f'):
-        if (try_match(STR("ft"))) {
-            return make_node(make_evaluation(operater::FFT));
-        }
-        if (try_match(STR("loor"))) {
-            return make_node(make_arithmetic(operater::FLOOR));
-        }
-        break;
-    case STR('g'):
-        if (try_match(STR("amma"))) {
-            return make_node(make_arithmetic(operater::GAMMA));
-        }
-        if (try_match(STR("cd"))) {
-            return make_node(make_evaluation(operater::GCD));
-        }
-        if (try_match(STR("en"))) {
-            return make_node(make_invocation(operater::GENERATE));
-        }
-        if (try_match(STR("mean"))) {
-            return make_node(make_evaluation(operater::GEOMETRIC_MEAN));
-        }
-        break;
-    case STR('h'):
-        if (try_match(STR("as"))) {
-            return make_node(make_invocation(operater::HAS));
-        }
-        if (try_match(STR("mean"))) {
-            return make_node(make_evaluation(operater::HARMONIC_MEAN));
-        }
-        break;
-    case STR('i'):
-        if (try_match(STR("dft"))) {
-            return make_node(make_evaluation(operater::IDFT));
-        }
-        if (try_match(STR("fft"))) {
-            return make_node(make_evaluation(operater::IFFT));
-        }
-        if (try_match(STR("mag"))) {
-            return make_node(make_arithmetic(operater::IMAGINARY));
-        }
-        if (try_match(STR("nte1"))) {
-            return make_node(make_invocation(operater::INTEGRATE));
-        }
-        if (try_match(STR("nte2"))) {
-            return make_node(make_invocation(operater::DOUBLE_INTEGRATE));
-        }
-        if (try_match(STR("nte3"))) {
-            return make_node(make_invocation(operater::TRIPLE_INTEGRATE));
-        }
-        if (try_match(STR("nte"))) {
-            return make_node(make_invocation(operater::INTEGRATE));
-        }
-        break;
-    case STR('l'):
-        if (try_match(STR("cm"))) {
-            return make_node(make_evaluation(operater::LCM));
-        }
-        if (try_match(STR("g"))) {
-            return make_node(make_arithmetic(operater::LG));
-        }
-        if (try_match(STR("n"))) {
-            return make_node(make_arithmetic(operater::LN));
-        }
-        break;
-    case STR('m'):
-        if (try_match(STR("ax"))) {
-            return make_node(make_evaluation(operater::MAX));
-        }
-        if (try_match(STR("ean"))) {
-            return make_node(make_evaluation(operater::MEAN));
-        }
-        if (try_match(STR("ed"))) {
-            return make_node(make_evaluation(operater::MEDIAN));
-        }
-        if (try_match(STR("in"))) {
-            return make_node(make_evaluation(operater::MIN));
-        }
-        if (try_match(STR("ode"))) {
-            return make_node(make_evaluation(operater::MODE));
-        }
-        break;
-    case STR('n'):
-        if (try_match(STR("pri"))) {
-            return make_node(make_arithmetic(operater::NTH_PRIME));
-        }
-        if (try_match(STR("com"))) {
-            return make_node(make_arithmetic(operater::NTH_COMPOSITE));
-        }
-        break;
-    case STR('p'):
-        if (try_match(STR("ick"))) {
-            return make_node(make_invocation(operater::PICK));
-        }
-        if (try_match(STR("ri"))) {
-            return make_node(make_arithmetic(operater::PRIME));
-        }
-        if (try_match(STR("rod"))) {
-            return make_node(make_invocation(operater::PRODUCE));
-        }
-        break;
-    case STR('q'):
-        if (try_match(STR("mean"))) {
-            return make_node(make_evaluation(operater::QUADRATIC_MEAN));
-        }
-        break;
-    case STR('r'):
-        if (try_match(STR("ange"))) {
-            return make_node(make_evaluation(operater::RANGE));
-        }
-        if (try_match(STR("eal"))) {
-            return make_node(make_arithmetic(operater::REAL));
-        }
-        if (try_match(STR("int"))) {
-            return make_node(make_arithmetic(operater::RINT));
-        }
-        if (try_match(STR("ound"))) {
-            return make_node(make_arithmetic(operater::ROUND));
-        }
-        if (try_match(STR("t"))) {
-            return make_node(make_arithmetic(operater::SQRT));
-        }
-        break;
-    case STR('s'):
-        if (try_match(STR("ec"))) {
-            return make_node(make_arithmetic(operater::SEC));
-        }
-        if (try_match(STR("el"))) {
-            return make_node(make_invocation(operater::SELECT));
-        }
-        if (try_match(STR("in"))) {
-            return make_node(make_arithmetic(operater::SIN));
-        }
-        if (try_match(STR("um"))) {
-            return make_node(make_invocation(operater::SUMMATE));
-        }
-        break;
-    case STR('t'):
-        if (try_match(STR("an"))) {
-            return make_node(make_arithmetic(operater::TAN));
-        }
-        if (try_match(STR("odeg"))) {
-            return make_node(make_arithmetic(operater::TODEG));
-        }
-        if (try_match(STR("orad"))) {
-            return make_node(make_arithmetic(operater::TORAD));
-        }
-        if (try_match(STR("ot"))) {
-            return make_node(make_evaluation(operater::TOTAL));
-        }
-        if (try_match(STR("rans"))) {
-            return make_node(make_invocation(operater::TRANSFORM));
-        }
-        if (try_match(STR("runc"))) {
-            return make_node(make_arithmetic(operater::TRUNC));
-        }
-        break;
-    case STR('u'):
-        if (try_match(STR("ni"))) {
-            return make_node(make_evaluation(operater::UNIQUE));
-        }
-        break;
-    case STR('v'):
-        if (try_match(STR("ar"))) {
-            return make_node(make_evaluation(operater::VARIANCE));
-        }
-        break;
-    case STR('z'):
-        if (try_match(STR("t"))) {
-            return make_node(make_evaluation(operater::ZT));
-        }
-        break;
-    case STR('~'):
-        if (try_match(STR("!"))) {
-            return make_node(make_arithmetic(operater::FACTORIAL));
-        }
-        break;
-    case STR('°'):
-        return make_node(make_arithmetic(operater::DEG));
-    case STR('∑'):
-        return make_node(make_invocation(operater::SUMMATE));
-    case STR('√'):
-        return make_node(make_arithmetic(operater::SQRT));
-    case STR('∫'):
-        if (try_match(STR("∫∫"))) {
-            return make_node(make_invocation(operater::TRIPLE_INTEGRATE));
-        }
-        if (try_match(STR("∫"))) {
-            return make_node(make_invocation(operater::DOUBLE_INTEGRATE));
-        }
-        return make_node(make_invocation(operater::INTEGRATE));
     }
 
-    if (ch) {
-        --m_pos;
-    }
-
-    return parse_function();
-}
-
-node* handler::parse_binary() {
-    char_t ch = get_char();
-    switch (ch) {
-    case STR('!'):
-        if (try_match(STR("="))) {
-            return make_node(make_compare(operater::NOT_EQUAL));
-        }
-        break;
-    case STR('%'):
-        return make_node(make_arithmetic(operater::MOD));
-    case STR('&'):
-        try_match(STR("&"));
-        return make_node(make_logic(operater::AND));
-    case STR('*'):
-        return make_node(make_arithmetic(operater::MULTIPLY));
-    case STR('+'):
-        return make_node(make_arithmetic(operater::PLUS));
-    case STR('-'):
-        return make_node(make_arithmetic(operater::MINUS));
-    case STR('/'):
-        return make_node(make_arithmetic(operater::DIVIDE));
-    case STR('<'):
-        return make_node(make_compare(try_match(STR("=")) ? operater::LESS_EQUAL : operater::LESS));
-    case STR('='):
-        try_match(STR("="));
-        return make_node(make_compare(operater::EQUAL));
-    case STR('>'):
-        return make_node(make_compare(try_match(STR("=")) ? operater::GREATER_EQUAL : operater::GREATER));
-    case STR('^'):
-        return make_node(make_arithmetic(operater::POW));
-    case STR('c'):
-        if (try_match(STR("b"))) {
-            return make_node(make_arithmetic(operater::COMBINE));
-        }
-        break;
-    case STR('h'):
-        if (try_match(STR("p"))) {
-            return make_node(make_arithmetic(operater::HYPOT));
-        }
-        break;
-    case STR('l'):
-        if (try_match(STR("og"))) {
-            return make_node(make_arithmetic(operater::LOG));
-        }
-        break;
-    case STR('p'):
-        if (try_match(STR("m"))) {
-            return make_node(make_arithmetic(operater::PERMUTE));
-        }
-        break;
-    case STR('r'):
-        if (try_match(STR("t"))) {
-            return make_node(make_arithmetic(operater::ROOT));
-        }
-        break;
-    case STR('v'):
-        if (try_match(STR("ec"))) {
-            return make_node(make_arithmetic(operater::VECTOR));
-        }
-        break;
-    case STR('|'):
-        try_match(STR("|"));
-        return make_node(make_logic(operater::OR));
-    case STR('~'):
-        if (try_match(STR("="))) {
-            return make_node(make_compare(operater::APPROACH));
-        }
-        break;
-    case STR('√'):
-        return make_node(make_arithmetic(operater::ROOT));
-    case STR('∠'):
-        return make_node(make_arithmetic(operater::VECTOR));
-    case STR('⊿'):
-        return make_node(make_arithmetic(operater::HYPOT));
-    }
-
-    if (ch) {
-        --m_pos;
-    }
-
-    return nullptr;
+    return operater::UNARY == kind ? parse_function() : nullptr;
 }
 
 node* handler::parse_function() {
@@ -651,28 +318,21 @@ node* handler::parse_object() {
 }
 
 node* handler::parse_constant() {
-    if (try_match(STR("false"))) {
-        return make_node(make_boolean(false));
-    }
-    if (try_match(STR("true"))) {
-        return make_node(make_boolean(true));
-    }
-    if (try_match(STR("∞")) || try_match(STR("inf"))) {
-        return make_node(make_real(INFINITY));
-    }
-    if (try_match(STR("π")) || try_match(STR("pi"))) {
-        return make_node(make_real(CONST_PI));
-    }
-    if (try_match(STR("e"))) {
-        return make_node(make_real(CONST_E));
-    }
-    if (try_match(STR("rand"))) {
-        static unsigned s = 0;
-        if (!s) {
-            s = (unsigned)time(nullptr);
-            srand(s);
+    for (auto iter = EXTRA_OBJECT_CONSTANT.rbegin(); EXTRA_OBJECT_CONSTANT.rend() != iter; ++iter) {
+        if (try_match(iter->second.string(object::NAME)) || try_match(iter->second.string(object::ALIAS))) {
+            switch (iter->first) {
+            case object::CONST_FALSE:
+                return make_node(make_boolean(false));
+            case object::CONST_TRUE:
+                return make_node(make_boolean(true));
+            case object::CONST_INFINITY:
+                return make_node(make_real(INFINITY));
+            case object::CONST_PI:
+                return make_node(make_real(REAL_PI));
+            case object::CONST_E:
+                return make_node(make_real(REAL_E));
+            }
         }
-        return make_node(make_real(rand()));
     }
 
     return nullptr;
@@ -719,8 +379,8 @@ node* handler::parse_numeric() {
         return nullptr;
     }
 
-    real_t real = str.empty() ? 1 : to_real(str);
-    return make_node(is_imag ? make_complex(0, real) : make_real(real));
+    real_t num = str.empty() ? 1 : to_real(str);
+    return make_node(is_imag ? make_imaginary(num) : make_real(num));
 }
 
 node* handler::parse_string() {
@@ -830,49 +490,49 @@ string_t handler::text(const node* nd) {
         return string_t();
     }
 
+    auto constant_text = [](real_t num) {
+        real_t abs = fabs(num);
+        string_t str;
+        if (approach_to(abs, REAL_PI)) {
+            str = EXTRA_OBJECT_CONSTANT.string(object::CONST_PI, object::NAME);
+        } else if (approach_to(abs, REAL_E)) {
+            str = EXTRA_OBJECT_CONSTANT.string(object::CONST_E, object::NAME);
+        }
+        if (!str.empty() && num < 0) {
+            str = STR('-') + str;
+        }
+        return str;
+    };
+
     switch (nd->type) {
     case node::OBJECT:
         switch (nd->obj.type) {
         case object::BOOLEAN:
             return to_string(nd->obj.boolean);
-        case object::REAL:
-            return to_string(nd->obj.real);
-        case object::COMPLEX:
-            return to_string(*nd->obj.complex);
+        case object::REAL: {
+            string_t str = constant_text(nd->obj.real);
+            return !str.empty() ? str : to_string(nd->obj.real);
+        }
+        case object::IMAGINARY: {
+            string_t str = constant_text(nd->obj.imaginary);
+            return !str.empty() ? str + STR('i') : to_string(complex_t(0, nd->obj.imaginary));
+        }
         case object::STRING:
-            return STR('\"') + *nd->obj.string + STR('\"');
+            return format(STR("\"%1\""), *nd->obj.string);
         case object::PARAM:
-            return STR('[') + *nd->obj.param + STR(']');
+            return format(STR("[%1]"), *nd->obj.param);
         case object::VARIABLE:
             return string_t(1, nd->obj.variable);
         case object::ARRAY: {
-            string_t str;
-            for (const node* item : *nd->obj.array) {
-                if (!str.empty()) {
-                    str += STR(',');
-                }
-                str += expr(item);
-            }
-            return STR('(') + str + STR(')');
+            const node_array& na = *nd->obj.array;
+            string_array sa(na.size());
+            std::transform(na.begin(), na.end(), sa.begin(), [](const node* nd) { return expr(nd); });
+            return format(STR("(%1)"), join(sa, STR(",")));
         }
         }
         break;
     case node::EXPR:
-        switch (nd->expr.oper.type) {
-        case operater::LOGIC:
-            return EXTRA_LOGIC_OPERATER.text(nd->expr.oper.logic, operater::TEXT);
-        case operater::COMPARE:
-            return EXTRA_COMPARE_OPERATER.text(nd->expr.oper.compare, operater::TEXT);
-        case operater::ARITHMETIC:
-            return EXTRA_ARITHMETIC_OPERATER.text(nd->expr.oper.arithmetic, operater::TEXT);
-        case operater::EVALUATION:
-            return EXTRA_EVALUATION_OPERATER.text(nd->expr.oper.evaluation, operater::TEXT);
-        case operater::INVOCATION:
-            return EXTRA_INVOCATION_OPERATER.text(nd->expr.oper.invocation, operater::TEXT);
-        case operater::FUNCTION:
-            return *nd->expr.oper.function;
-        }
-        break;
+        return nd->is_function() ? *nd->expr.oper.function : EXTRA_OPERATER_CODE.string(nd->expr.oper.code, operater::NAME);
     }
 
     return string_t();
@@ -888,10 +548,10 @@ string_t handler::expr(const node* nd) {
         string_t left = expr(nd->expr.left);
         string_t right = expr(nd->expr.right);
         if (nd->expr.left && nd->higher_than(nd->expr.left)) {
-            left = STR('(') + left + STR(')');
+            left = format(STR("(%1)"), left);
         }
         if (nd->expr.right && !nd->lower_than(nd->expr.right)) {
-            right = STR('(') + right + STR(')');
+            right = format(STR("(%1)"), right);
         }
         str = left + str + right;
     }
@@ -908,17 +568,256 @@ string_t handler::expr(const node* nd) {
     return str;
 }
 
+string_t handler::latex(const node* nd) {
+    if (!nd) {
+        return string_t();
+    }
+
+    string_t str;
+    switch (nd->type) {
+    case node::OBJECT: {
+        switch (nd->obj.type) {
+        case object::BOOLEAN:
+        case object::VARIABLE:
+            str = text(nd);
+            break;
+        case object::REAL:
+        case object::IMAGINARY: {
+            str = text(nd);
+            for (auto& pair : {std::make_pair(object::CONST_INFINITY, STR("\\infty ")), std::make_pair(object::CONST_PI, STR("\\pi "))}) {
+                for (auto& name : EXTRA_OBJECT_CONSTANT.at(pair.first)) {
+                    if (replace(str, name, pair.second)) {
+                        goto done;
+                    }
+                }
+            }
+        done:
+            break;
+        }
+        case object::STRING:
+            str = format(STR("``%1\""), *nd->obj.string);
+            break;
+        case object::PARAM:
+            str = format(STR("\\left[%1\\right]"), *nd->obj.param);
+            break;
+        case object::ARRAY: {
+            const node_array& na = *nd->obj.array;
+            string_array sa(na.size());
+            std::transform(na.begin(), na.end(), sa.begin(), [](const node* nd) { return latex(nd); });
+            str = format(STR("\\left(%1\\right)"), join(sa, STR(",")));
+            break;
+        }
+        }
+        break;
+    }
+    case node::EXPR: {
+        string_t simple, packed;
+        if (nd->is_function()) {
+            simple = STR(' ') + text(nd);
+        } else {
+            switch (nd->expr.oper.code) {
+            case operater::AND:
+                simple = STR("\\land ");
+                break;
+            case operater::OR:
+                simple = STR("\\lor ");
+                break;
+            case operater::NOT:
+                simple = STR("\\neg ");
+                break;
+            case operater::EQUAL:
+                simple = STR('=');
+                break;
+            case operater::APPROACH:
+                simple = STR("\\approx ");
+                break;
+            case operater::NOT_EQUAL:
+                simple = STR("\\neq ");
+                break;
+            case operater::LESS_EQUAL:
+                simple = STR("\\leq ");
+                break;
+            case operater::GREATER_EQUAL:
+                simple = STR("\\geq ");
+                break;
+            case operater::MULTIPLY:
+                simple = STR("\\cdot ");
+                break;
+            case operater::DIVIDE:
+                packed = STR("\\frac{%1}{%2}");
+                break;
+            case operater::MODULUS:
+                simple = STR("\\%");
+                break;
+            case operater::CEIL:
+                packed = STR("\\left\\lceil %2\\right\\rceil ");
+                break;
+            case operater::FLOOR:
+                packed = STR("\\left\\lfloor %2\\right\\rfloor ");
+                break;
+            case operater::TRUNC:
+            case operater::ROUND:
+            case operater::RINT:
+            case operater::PHASE:
+            case operater::REAL:
+            case operater::IMAGINARY:
+            case operater::CONJUGATE:
+            case operater::EXP:
+            case operater::LG:
+            case operater::LN:
+            case operater::TODEG:
+            case operater::TORAD:
+            case operater::SIN:
+            case operater::COS:
+            case operater::TAN:
+            case operater::COT:
+            case operater::SEC:
+            case operater::CSC:
+            case operater::PRIME:
+            case operater::COMPOSITE:
+            case operater::NTH_PRIME:
+            case operater::NTH_COMPOSITE:
+            case operater::RAND:
+                packed = format(STR(" %1\\left(%2\\right)"), text(nd));
+                break;
+            case operater::ABS:
+                packed = STR("\\left|%2\\right|");
+                break;
+            case operater::FACTORIAL:
+                simple = STR('!');
+                break;
+            case operater::GAMMA:
+                simple = STR("\\Gamma ");
+                break;
+            case operater::PERMUTE:
+                packed = STR(" P_{%1}^{%2}");
+                break;
+            case operater::COMBINE:
+                packed = STR(" C_{%1}^{%2}");
+                break;
+            case operater::POW: {
+                const node* left = nd->expr.left;
+                if (left && (left->is_real() || left->is_variable() ||
+                             (left->is_imaginary() && (0 == left->obj.imaginary || 1 == left->obj.imaginary)))) {
+                    packed = STR(" %1^{%2}");
+                } else {
+                    packed = STR("\\left(%1\\right)^{%2}");
+                }
+                break;
+            }
+            case operater::LOG:
+                packed = STR(" log_{%1}\\left(%2\\right)");
+                break;
+            case operater::SQRT:
+                packed = STR("\\sqrt{%2}");
+                break;
+            case operater::ROOT:
+                packed = STR("\\sqrt[%1]{%2}");
+                break;
+            case operater::POLAR:
+                simple = STR("\\angle ");
+                break;
+            case operater::DEG:
+                simple = STR("^{\\circ}");
+                break;
+            case operater::ARCSIN:
+            case operater::ARCCOS:
+            case operater::ARCTAN:
+            case operater::ARCCOT:
+            case operater::ARCSEC:
+            case operater::ARCCSC:
+                packed = format(STR(" %1^{-1}\\left(%2\\right)"), text(nd).substr(1));
+                break;
+            case operater::SUMMATE:
+            case operater::PRODUCE:
+                if (nd->expr.right && nd->expr.right->is_array()) {
+                    const node_array& wrap = *nd->expr.right->obj.array;
+                    if (3 <= wrap.size()) {
+                        string_t name = EXTRA_OPERATER_CODE.string(nd->expr.oper.code, operater::ALIAS);
+                        string_t variable = wrap[2]->function_variables();
+                        if (!variable.empty()) {
+                            variable.replace(variable.begin() + 1, variable.end(), STR("="));
+                        }
+                        packed = format(STR("\\%1_{%2}^{%3}%4 "), {name, variable + latex(wrap[0]), latex(wrap[1]), latex(wrap[2])});
+                    }
+                }
+                if (packed.empty()) {
+                    simple = text(nd);
+                }
+                break;
+            case operater::INTEGRATE:
+            case operater::DOUBLE_INTEGRATE:
+            case operater::TRIPLE_INTEGRATE:
+                if (nd->expr.right && nd->expr.right->is_array()) {
+                    const std::pair<size_t, string_t> attrs[] = {
+                        {3, STR("\\int_{%1}^{%2}%3")},
+                        {5, STR("\\int_{%1}^{%2}\\int_{%3}^{%4}%5")},
+                        {7, STR("\\int_{%1}^{%2}\\int_{%3}^{%4}\\int_{%5}^{%6}%7")}
+                    };
+                    size_t index = nd->expr.oper.code - operater::INTEGRATE;
+                    auto& attr = attrs[index];
+
+                    const node_array& wrap = *nd->expr.right->obj.array;
+                    if (attr.first <= wrap.size()) {
+                        string_array args(wrap.size());
+                        std::transform(wrap.begin(), wrap.end(), args.begin(), [](const node* nd) { return latex(nd); });
+                        packed = format(attr.second, args);
+                        for (char_t variable : wrap[attr.first - 1]->function_variables().substr(0, index + 1)) {
+                            packed += STR("\\cdot d");
+                            packed += variable;
+                        }
+                    }
+                }
+                if (packed.empty()) {
+                    simple = text(nd);
+                }
+                break;
+            default:
+                simple = text(nd);
+                break;
+            }
+        }
+
+        string_t left = latex(nd->expr.left);
+        string_t right = latex(nd->expr.right);
+        if (!simple.empty()) {
+            if (nd->expr.left && (nd->higher_than(nd->expr.left) || nd->expr.left->is_largescale())) {
+                left = format(STR("\\left(%1\\right)"), left);
+            }
+            if (nd->expr.right && !nd->lower_than(nd->expr.right)) {
+                right = format(STR("\\left(%1\\right)"), right);
+            }
+            str = left + simple + right;
+        } else if (!packed.empty()) {
+            str = format(packed, left, right);
+        }
+        break;
+    }
+    }
+
+    if (nd->defines && nd->defines->is_array()) {
+        const node_array& na = *nd->defines->obj.array;
+        string_array sa(na.size());
+        std::transform(na.begin(), na.end(), sa.begin(), [](const node* nd) { return format(STR("&%1\\\\ "), latex(nd)); });
+        if (!sa.empty()) {
+            str = format(STR("\\begin{align}%1&%2\\end{align}"), join(sa, string_t()), str);
+        }
+    }
+
+    return str;
+}
+
 string_t handler::tree(const node* nd, size_t indent) {
     if (!nd) {
         return string_t();
     }
 
-    string_t str = string_t(3, STR('─')) + STR(' ') + (nd->is_array() ? STR("array") : text(nd));
+    string_t str = STR("─── ") + (nd->is_array() ? STR("array") : text(nd));
     if (nd->upper()) {
         node::node_side side = nd->side();
         str[0] = (node::LEFT == side ? STR('┌') : (node::TAIL == nd->pos() ? STR('└') : STR('├')));
         for (const node* ancestor = nd->upper(); ancestor; ancestor = ancestor->upper()) {
-            str = string_t(4, STR(' ')) + str;
+            str = STR("    ") + str;
             node::node_side this_side = ancestor->side();
             if (ancestor->upper() && (node::TAIL != ancestor->pos() || this_side != side)) {
                 str[0] = STR('│');
@@ -959,7 +858,8 @@ variant handler::calc(const node* nd, const calc_assist& assist) {
     case node::EXPR:
         switch (nd->expr.oper.type) {
         case operater::INVOCATION:
-            return calc_invocation(nd, assist);
+        case operater::LARGESCALE:
+            return calc_calls(nd, assist);
         case operater::FUNCTION:
             return calc_function(nd, assist);
         }
@@ -975,8 +875,8 @@ variant handler::calc_object(const node* nd, const calc_assist& assist) {
         return nd->obj.boolean;
     case object::REAL:
         return nd->obj.real;
-    case object::COMPLEX:
-        return *nd->obj.complex;
+    case object::IMAGINARY:
+        return complex_t(0, nd->obj.imaginary);
     case object::STRING:
         return *nd->obj.string;
     case object::PARAM:
@@ -984,8 +884,9 @@ variant handler::calc_object(const node* nd, const calc_assist& assist) {
     case object::VARIABLE:
         return assist.vr ? assist.vr(nd->obj.variable) : variant();
     case object::ARRAY: {
-        sequence_t sequence(nd->obj.array->size());
-        std::transform(nd->obj.array->begin(), nd->obj.array->end(), sequence.begin(), [&assist](node* nd) { return calc(nd, assist); });
+        const node_array& na = *nd->obj.array;
+        sequence_t sequence(na.size());
+        std::transform(na.begin(), na.end(), sequence.begin(), [&assist](const node* nd) { return calc(nd, assist); });
         return sequence;
     }
     }
@@ -1019,24 +920,25 @@ variant handler::calc_function(const node* nd, const calc_assist& assist) {
     return calc(rule, {assist.pr, vr, assist.dm});
 }
 
-variant handler::calc_invocation(const node* nd, const calc_assist& assist) {
+variant handler::calc_calls(const node* nd, const calc_assist& assist) {
     if (!nd->expr.right || !nd->expr.right->is_array()) {
         return variant();
     }
 
     const node_array& wrap = *nd->expr.right->obj.array;
-    switch (nd->expr.oper.invocation) {
+    switch (nd->expr.oper.code) {
     case operater::GENERATE:
         return calc_generate(wrap, assist);
     case operater::HAS:
     case operater::PICK:
     case operater::SELECT:
+    case operater::SORT:
     case operater::TRANSFORM:
     case operater::ACCUMULATE:
-        return calc_sequence(nd->expr.oper.invocation, wrap, assist);
+        return calc_sequence(nd->expr.oper.code, wrap, assist);
     case operater::SUMMATE:
     case operater::PRODUCE:
-        return calc_cumulate(nd->expr.oper.invocation, wrap, assist);
+        return calc_cumulate(nd->expr.oper.code, wrap, assist);
     case operater::INTEGRATE:
         return calc_integrate(wrap, assist);
     case operater::DOUBLE_INTEGRATE:
@@ -1081,7 +983,7 @@ variant handler::calc_generate(const node_array& wrap, const calc_assist& assist
     return res;
 }
 
-variant handler::calc_sequence(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist) {
+variant handler::calc_sequence(operater::operater_code code, const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 2) {
         return variant();
     }
@@ -1097,26 +999,27 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
     using std::placeholders::_1;
     const sequence_t& sequence = *arg0.sequence;
     size_t size = sequence.size();
-    auto sequence_vr = [&sequence](size_t index, const string_t& variables, char_t variable) -> variant {
-        if (1 <= variables.size() && variables[0] == variable) {
+    auto sequence_vr = [&sequence](size_t index, const string_t& variables, size_t offset, char_t variable) -> variant {
+        if (offset < variables.size() && variables[offset] == variable) {
             return sequence[index];
         }
 
-        if (2 <= variables.size() && variables[1] == variable) {
+        ++offset;
+        if (offset < variables.size() && variables[offset] == variable) {
             return index;
         }
 
         return sequence;
     };
 
-    switch (invocation) {
+    switch (code) {
     case operater::HAS: {
         if (variables.empty()) {
             return sequence.end() != std::find(sequence.begin(), sequence.end(), arg1);
         }
 
         for (size_t index = 0; index < size; ++index) {
-            variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
+            variable_replacer vr = std::bind(sequence_vr, index, variables, 0, _1);
             if (calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                 return true;
             }
@@ -1133,7 +1036,7 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
         }
 
         for (size_t index = 0; index < size; ++index) {
-            variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
+            variable_replacer vr = std::bind(sequence_vr, index, variables, 0, _1);
             if (calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                 return sequence[index];
             }
@@ -1149,7 +1052,7 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
                     res.push_back(arg1);
                 }
             } else {
-                variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
+                variable_replacer vr = std::bind(sequence_vr, index, variables, 0, _1);
                 if (calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean()) {
                     res.push_back(sequence[index]);
                 }
@@ -1158,13 +1061,29 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
 
         return res;
     }
+    case operater::SORT: {
+        std::function<bool(const variant& var1, const variant& var2)> pred;
+        if (variables.size() < 2) {
+            operater oper = make_operater(arg1.to_boolean() ? operater::LESS : operater::GREATER);
+            pred = [oper](const variant& var1, const variant& var2) { return operate(var1, oper, var2).to_boolean(); };
+        } else {
+            pred = [&wrap, &assist, &variables](const variant& var1, const variant& var2) {
+                variable_replacer vr = [&var1, &var2, &variables](char_t variable) { return variables[0] == variable ? var1 : var2; };
+                return calc_function(wrap[1], {assist.pr, vr, assist.dm}).to_boolean();
+            };
+        }
+
+        sequence_t res(sequence);
+        std::sort(res.begin(), res.end(), pred);
+        return res;
+    }
     case operater::TRANSFORM: {
         sequence_t res(size);
         for (size_t index = 0; index < size; ++index) {
             if (variables.empty()) {
                 res[index] = arg1;
             } else {
-                variable_replacer vr = std::bind(sequence_vr, index, variables, _1);
+                variable_replacer vr = std::bind(sequence_vr, index, variables, 0, _1);
                 res[index] = calc_function(wrap[1], {assist.pr, vr, assist.dm});
             }
         }
@@ -1181,8 +1100,9 @@ variant handler::calc_sequence(operater::invocation_operater invocation, const n
             return arg2;
         }
 
-        for (const variant& item : sequence) {
-            variable_replacer vr = [&arg2, &item, &variables](char_t variable) { return variables[0] == variable ? arg2 : item; };
+        for (size_t index = 0; index < size; ++index) {
+            variable_replacer vr1 = std::bind(sequence_vr, index, variables, 1, _1);
+            variable_replacer vr = [&arg2, &variables, &vr1](char_t variable) { return variables[0] == variable ? arg2 : vr1(variable); };
             arg2 = calc_function(wrap[1], {assist.pr, vr, assist.dm});
         }
 
@@ -1207,28 +1127,28 @@ handler::bound_t handler::calc_bound(const node* lower_nd, const node* upper_nd,
     return bound;
 }
 
-variant handler::calc_cumulate(operater::invocation_operater invocation, const node_array& wrap, const calc_assist& assist) {
+variant handler::calc_cumulate(operater::operater_code code, const node_array& wrap, const calc_assist& assist) {
     if (wrap.size() < 3 || wrap[2]->function_variables().empty()) {
         return variant();
     }
 
     variant res;
     operater oper;
-    switch (invocation) {
+    switch (code) {
     case operater::SUMMATE:
         res = real_t(0);
-        oper = make_arithmetic(operater::PLUS);
+        oper = make_operater(operater::PLUS);
         break;
     case operater::PRODUCE:
         res = real_t(1);
-        oper = make_arithmetic(operater::MULTIPLY);
+        oper = make_operater(operater::MULTIPLY);
         break;
     default:
         return variant();
     }
 
-    bound_t bound = calc_bound(wrap[0], wrap[1], assist, true);
-    for (real_t n = bound.first; n <= bound.second; ++n) {
+    bound_t bn = calc_bound(wrap[0], wrap[1], assist, true);
+    for (real_t n = bn.first; n <= bn.second; ++n) {
         res = operate(res, oper, calc_function(wrap[2], {assist.pr, [n](char_t) { return n; }, assist.dm}));
     }
 
@@ -1240,18 +1160,19 @@ variant handler::calc_integrate(const node_array& wrap, const calc_assist& assis
         return variant();
     }
 
-    bound_t bound = calc_bound(wrap[0], wrap[1], assist);
-    real_t delta = (bound.second - bound.first) / INTEGRATE_PIECE_SIZE;
+    bound_t bx = calc_bound(wrap[0], wrap[1], assist);
+    real_t dx = (bx.second - bx.first) / INTEGRATE_PIECE_SIZE;
+
     auto integrand = [&wrap, &assist](real_t x) {
         return calc_function(wrap[2], {assist.pr, [x](char_t) { return x; }, assist.dm}).to_real();
     };
 
-    real_t res = (integrand(bound.first) + integrand(bound.second)) * 0.5;
+    real_t res = (integrand(bx.first) + integrand(bx.second)) * 0.5;
     for (size_t n = 1; n < INTEGRATE_PIECE_SIZE; ++n) {
-        res += integrand(bound.first + delta * n);
+        res += integrand(bx.first + dx * n);
     }
 
-    return res * delta;
+    return res * dx;
 }
 
 variant handler::calc_integrate2(const node_array& wrap, const calc_assist& assist) {
@@ -1264,33 +1185,35 @@ variant handler::calc_integrate2(const node_array& wrap, const calc_assist& assi
         return variant();
     }
 
-    bound_t xbound = calc_bound(wrap[0], wrap[1], assist);
-    real_t xdelta = (xbound.second - xbound.first) / INTEGRATE2_PIECE_SIZE;
+    bound_t by = calc_bound(wrap[0], wrap[1], assist);
+    real_t dy = (by.second - by.first) / INTEGRATE2_PIECE_SIZE;
 
-    bound_t ybound = calc_bound(wrap[2], wrap[3], assist);
-    real_t ydelta = (ybound.second - ybound.first) / INTEGRATE2_PIECE_SIZE;
+    bound_t bx = calc_bound(wrap[2], wrap[3], assist);
+    real_t dx = (bx.second - bx.first) / INTEGRATE2_PIECE_SIZE;
 
     auto integrand = [&wrap, &assist, &variables](real_t x, real_t y) {
         variable_replacer vr = [x, y, &variables](char_t variable) { return variables[0] == variable ? x : y; };
         return calc_function(wrap[4], {assist.pr, vr, assist.dm}).to_real();
     };
 
+    auto adjust = [](real_t& value, size_t n) {
+        if (0 == n || INTEGRATE2_PIECE_SIZE == n) {
+            value *= 0.5;
+        }
+    };
+
     real_t res = 0;
-    for (size_t xn = 0; xn <= INTEGRATE2_PIECE_SIZE; ++xn) {
-        real_t x = xbound.first + xdelta * xn;
-        for (size_t yn = 0; yn <= INTEGRATE2_PIECE_SIZE; ++yn) {
-            real_t value = integrand(x, ybound.first + ydelta * yn);
-            if (0 == xn || INTEGRATE2_PIECE_SIZE == xn) {
-                value *= 0.5;
-            }
-            if (0 == yn || INTEGRATE2_PIECE_SIZE == yn) {
-                value *= 0.5;
-            }
+    for (size_t ny = 0; ny <= INTEGRATE2_PIECE_SIZE; ++ny) {
+        real_t y = by.first + dy * ny;
+        for (size_t nx = 0; nx <= INTEGRATE2_PIECE_SIZE; ++nx) {
+            real_t value = integrand(bx.first + dx * nx, y);
+            adjust(value, nx);
+            adjust(value, ny);
             res += value;
         }
     }
 
-    return res * xdelta * ydelta;
+    return res * dx * dy;
 }
 
 variant handler::calc_integrate3(const node_array& wrap, const calc_assist& assist) {
@@ -1303,14 +1226,14 @@ variant handler::calc_integrate3(const node_array& wrap, const calc_assist& assi
         return variant();
     }
 
-    bound_t xbound = calc_bound(wrap[0], wrap[1], assist);
-    real_t xdelta = (xbound.second - xbound.first) / INTEGRATE3_PIECE_SIZE;
+    bound_t bz = calc_bound(wrap[0], wrap[1], assist);
+    real_t dz = (bz.second - bz.first) / INTEGRATE3_PIECE_SIZE;
 
-    bound_t ybound = calc_bound(wrap[2], wrap[3], assist);
-    real_t ydelta = (ybound.second - ybound.first) / INTEGRATE3_PIECE_SIZE;
+    bound_t by = calc_bound(wrap[2], wrap[3], assist);
+    real_t dy = (by.second - by.first) / INTEGRATE3_PIECE_SIZE;
 
-    bound_t zbound = calc_bound(wrap[4], wrap[5], assist);
-    real_t zdelta = (zbound.second - zbound.first) / INTEGRATE3_PIECE_SIZE;
+    bound_t bx = calc_bound(wrap[4], wrap[5], assist);
+    real_t dx = (bx.second - bx.first) / INTEGRATE3_PIECE_SIZE;
 
     auto integrand = [&wrap, &assist, &variables](real_t x, real_t y, real_t z) {
         variable_replacer vr = [x, y, z, &variables](char_t variable) {
@@ -1319,28 +1242,28 @@ variant handler::calc_integrate3(const node_array& wrap, const calc_assist& assi
         return calc_function(wrap[6], {assist.pr, vr, assist.dm}).to_real();
     };
 
+    auto adjust = [](real_t& value, size_t n) {
+        if (0 == n || INTEGRATE3_PIECE_SIZE == n) {
+            value *= 0.5;
+        }
+    };
+
     real_t res = 0;
-    for (size_t xn = 0; xn <= INTEGRATE3_PIECE_SIZE; ++xn) {
-        real_t x = xbound.first + xdelta * xn;
-        for (size_t yn = 0; yn <= INTEGRATE3_PIECE_SIZE; ++yn) {
-            real_t y = ybound.first + ydelta * yn;
-            for (size_t zn = 0; zn <= INTEGRATE3_PIECE_SIZE; ++zn) {
-                real_t value = integrand(x, y, zbound.first + zdelta * zn);
-                if (0 == xn || INTEGRATE3_PIECE_SIZE == xn) {
-                    value *= 0.5;
-                }
-                if (0 == yn || INTEGRATE3_PIECE_SIZE == yn) {
-                    value *= 0.5;
-                }
-                if (0 == zn || INTEGRATE3_PIECE_SIZE == zn) {
-                    value *= 0.5;
-                }
+    for (size_t nz = 0; nz <= INTEGRATE3_PIECE_SIZE; ++nz) {
+        real_t z = bz.first + dz * nz;
+        for (size_t ny = 0; ny <= INTEGRATE3_PIECE_SIZE; ++ny) {
+            real_t y = by.first + dy * ny;
+            for (size_t nx = 0; nx <= INTEGRATE3_PIECE_SIZE; ++nx) {
+                real_t value = integrand(bx.first + dx * nx, y, z);
+                adjust(value, nx);
+                adjust(value, ny);
+                adjust(value, nz);
                 res += value;
             }
         }
     }
 
-    return res * xdelta * ydelta * zdelta;
+    return res * dx * dy * dz;
 }
 
 }

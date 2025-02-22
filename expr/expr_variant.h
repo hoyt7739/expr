@@ -26,84 +26,12 @@
 #define EXPR_VARIANT_H
 
 #include <cstring>
-#include <complex>
-#include <string>
-#include <vector>
-#include <locale>
-#include <codecvt>
+#include <algorithm>
+#include "expr_common.h"
 
 namespace expr {
 
-using real_t        = double;
-using complex_t     = std::complex<real_t>;
-using string_t      = std::wstring;
-using char_t        = string_t::value_type;
-using sequence_t    = std::vector<struct variant>;
-
-#define STR(s) L##s
-
-const real_t CONST_PI   = 3.1415926535897932384626433832795;
-const real_t CONST_E    = 2.7182818284590452353602874713527;
-const real_t EPSILON    = 1.0e-9;
-
-inline bool approach_to(real_t left, real_t right) {
-    return fabs(left - right) < EPSILON;
-}
-
-inline bool is_zahlen(real_t value) {
-    return approach_to(value, round(value));
-}
-
-inline string_t to_string(bool boolean) {
-    return boolean ? STR("true") : STR("false");
-}
-
-inline string_t to_string(real_t real) {
-    string_t str = std::to_wstring(real);
-    if (string_t::npos != str.find(STR('.'))) {
-        while (STR('0') == str.back()) {
-            str.pop_back();
-        }
-        if (STR('.') == str.back()) {
-            str.pop_back();
-        }
-    }
-
-    return str;
-}
-
-inline string_t to_string(const complex_t& complex) {
-    real_t real = complex.real();
-    real_t imag = complex.imag();
-    if (approach_to(imag, 0)) {
-        return to_string(real);
-    }
-
-    string_t imag_str;
-    if (approach_to(imag, 1)) {
-        imag_str = STR('i');
-    } else if (approach_to(imag, -1)) {
-        imag_str = STR("-i");
-    } else {
-        imag_str = to_string(imag) + STR('i');
-    }
-
-    return approach_to(real, 0) ? imag_str : to_string(real) + (imag < 0 ? imag_str : STR('+') + imag_str);
-}
-
-inline real_t to_real(const string_t& str) {
-    real_t real{};
-    try { real = std::stod(str); } catch (...) {}
-    return real;
-}
-
-inline std::string to_utf8(const string_t& str) {
-    return std::wstring_convert<std::codecvt_utf8_utf16<char_t>>().to_bytes(str);
-}
-
-inline string_t from_utf8(const std::string& str) {
-    return std::wstring_convert<std::codecvt_utf8_utf16<char_t>>().from_bytes(str);
-}
+using sequence_t = std::vector<struct variant>;
 
 struct variant {
     enum variant_type {
@@ -128,8 +56,10 @@ struct variant {
     variant(bool value) : type(BOOLEAN), boolean(value) {}
     variant(real_t value) : type(REAL), real(value) {}
     variant(size_t value) : type(REAL), real(real_t(value)) {}
+    variant(int value) : type(REAL), real(real_t(value)) {}
     variant(const complex_t& value) : type(COMPLEX), complex(new complex_t(value)) {}
     variant(const string_t& value) : type(STRING), string(new string_t(value)) {}
+    variant(const char_t* value) : type(STRING), string(new string_t(value)) {}
     variant(const sequence_t& value) : type(SEQUENCE), sequence(new sequence_t(value)) {}
 
     variant(const variant& other) {
@@ -262,16 +192,11 @@ struct variant {
         case COMPLEX:
             return to_string();
         case STRING:
-            return STR('\"') + *string + STR('\"');
+            return format(STR("\"%1\""), *string);
         case SEQUENCE: {
-            string_t str;
-            for (const variant& item : *sequence) {
-                if (!str.empty()) {
-                    str += STR(',');
-                }
-                str += item.to_text();
-            }
-            return STR('(') + str + STR(')');
+            string_array array(sequence->size());
+            std::transform(sequence->begin(), sequence->end(), array.begin(), [](const variant& var) { return var.to_text(); });
+            return format(STR("(%1)"), join(array, STR(",")));
         }
         }
 
